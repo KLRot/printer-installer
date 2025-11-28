@@ -20,14 +20,16 @@ jobs:
         with:
           go-version: '1.21'
 
-      # 使用 fyne-cross 自动处理交叉编译依赖
+      # 安装 fyne-cross 工具
+      - name: Install fyne-cross
+        run: |
+          go install github.com/fyne-io/fyne-cross@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      # 运行 fyne-cross 进行编译
       - name: Build with fyne-cross
-        uses: fyne-io/fyne-cross@v2
-        with:
-          target: linux
-          arch: amd64,arm64
-          # -strip 减小体积，-name 指定输出文件名
-          args: -strip -name printer-installer
+        run: |
+          fyne-cross linux -arch=amd64,arm64 -strip -name printer-installer
 
       # 准备 AppImage 打包环境
       - name: Install AppImageTool
