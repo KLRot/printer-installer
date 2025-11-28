@@ -58,8 +58,8 @@ jobs:
           # 复制二进制文件 (使用 find 查找，避免路径错误)
           echo ">>> Copying binaries..."
           
-          # 查找并复制 amd64 二进制
-          BIN_AMD64=$(find fyne-cross -name "${APP_NAME}" -type f | grep "linux-amd64" | head -n 1)
+          # 查找并复制 amd64 二进制 (使用通配符匹配，因为实际文件名可能是 printer-installer-go)
+          BIN_AMD64=$(find fyne-cross -name "${APP_NAME}*" -type f | grep "linux-amd64" | head -n 1)
           if [ -z "$BIN_AMD64" ]; then
             echo "Error: Could not find amd64 binary"
             exit 1
@@ -68,7 +68,7 @@ jobs:
           cp "$BIN_AMD64" ${APPDIR}/usr/bin/${APP_NAME}-x86
           
           # 查找并复制 arm64 二进制
-          BIN_ARM64=$(find fyne-cross -name "${APP_NAME}" -type f | grep "linux-arm64" | head -n 1)
+          BIN_ARM64=$(find fyne-cross -name "${APP_NAME}*" -type f | grep "linux-arm64" | head -n 1)
           if [ -z "$BIN_ARM64" ]; then
              echo "Warning: Could not find arm64 binary, skipping..."
           else
