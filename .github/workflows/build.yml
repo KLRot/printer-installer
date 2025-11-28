@@ -31,87 +31,32 @@ jobs:
         run: |
           fyne-cross linux -arch=amd64,arm64 -name printer-installer
 
-      # 准备 AppImage 打包环境
-      - name: Install AppImageTool
+      # 整理二进制文件
+      - name: Organize Binaries
         run: |
-          wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
-
-      # 手动打包 AppImage
-      - name: Package AppImage
-        run: |
-          # 调试：显示目录结构
-          echo ">>> Listing fyne-cross directory:"
-          ls -R fyne-cross
-
-          # 定义变量
+          mkdir -p dist
           APP_NAME=printer-installer
-          APPDIR=appimage/AppDir
-          DIST=dist
-          mkdir -p $DIST
           
-          # 确保目录存在
-          mkdir -p ${APPDIR}/usr/bin
-          mkdir -p ${APPDIR}/usr/share/icons
-          
-          # 复制二进制文件 (使用 find 查找，避免路径错误)
-          echo ">>> Copying binaries..."
-          
-          # 查找并复制 amd64 二进制 (排除 .tar.xz 压缩包)
+          # 查找并复制 amd64 二进制
           BIN_AMD64=$(find fyne-cross -name "${APP_NAME}*" -type f ! -name "*.tar.xz" | grep "linux-amd64" | head -n 1)
-          if [ -z "$BIN_AMD64" ]; then
-            echo "Error: Could not find amd64 binary"
-            exit 1
+          if [ -n "$BIN_AMD64" ]; then
+            echo "Found amd64 binary: $BIN_AMD64"
+            cp "$BIN_AMD64" dist/printer-installer-amd64
           fi
-          echo "Found amd64 binary at: $BIN_AMD64"
-          cp "$BIN_AMD64" ${APPDIR}/usr/bin/${APP_NAME}-x86
           
           # 查找并复制 arm64 二进制
           BIN_ARM64=$(find fyne-cross -name "${APP_NAME}*" -type f ! -name "*.tar.xz" | grep "linux-arm64" | head -n 1)
-          if [ -z "$BIN_ARM64" ]; then
-             echo "Warning: Could not find arm64 binary, skipping..."
-          else
-             echo "Found arm64 binary at: $BIN_ARM64"
-             cp "$BIN_ARM64" ${APPDIR}/usr/bin/${APP_NAME}-arm64
+          if [ -n "$BIN_ARM64" ]; then
+            echo "Found arm64 binary: $BIN_ARM64"
+            cp "$BIN_ARM64" dist/printer-installer-arm64
           fi
           
-          chmod +x ${APPDIR}/usr/bin/*
-          
-          # 复制资源文件
-          # 注意：desktop 文件和 AppRun 已经在 appimage/AppDir/ 下，无需复制
-          # cp appimage/AppDir/printer-installer.desktop ${APPDIR}/printer-installer.desktop
-          
-          # 复制图标到标准目录和 AppDir 根目录 (appimagetool 要求)
-          cp assets/printer_icon.png ${APPDIR}/usr/share/icons/printer.png
-          cp assets/printer_icon.png ${APPDIR}/printer.png
-          
-          # cp appimage/AppDir/AppRun ${APPDIR}/AppRun
-          
-          chmod +x ${APPDIR}/AppRun
-          
-          # --- 恢复二合一打包逻辑 ---
-          echo ">>> Creating Combined AppImage..."
-          
-          # 1. 放入 x86 二进制
-          cp "$BIN_AMD64" ${APPDIR}/usr/bin/${APP_NAME}-x86
-          
-          # 2. 放入 arm64 二进制
-          cp "$BIN_ARM64" ${APPDIR}/usr/bin/${APP_NAME}-arm64
-          
-          # 3. 打包成一个文件
-          # 注意：生成的 AppImage 默认使用 x86_64 runtime。
-          # 在 ARM64 机器上直接运行可能需要 binfmt_misc 支持或手动解压。
-          ARCH=x86_64 appimagetool ${APPDIR} ${DIST}/PrinterInstaller.AppImage
-          
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: PrinterInstaller-AppImage
-          path: dist/*.AppImage
+          chmod +x dist/*
+          ls -l dist/
 
-      - name: Upload Raw Binaries
+      # 上传二进制文件
+      - name: Upload Binaries
         uses: actions/upload-artifact@v4
         with:
-          name: Linux-Binaries
-          path: fyne-cross/bin/linux-*/*
+          name: printer-installer-linux
+          path: dist/*

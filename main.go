@@ -13,9 +13,11 @@ import (
 
     "fyne.io/fyne/v2"
     "fyne.io/fyne/v2/app"
+    "fyne.io/fyne/v2/canvas"
     "fyne.io/fyne/v2/container"
     "fyne.io/fyne/v2/dialog"
     "fyne.io/fyne/v2/layout"
+    "fyne.io/fyne/v2/theme"
     "fyne.io/fyne/v2/widget"
 )
 
@@ -36,68 +38,63 @@ type Config struct {
     PrinterModels map[string]PrinterModelCfg `json:"printer_models"`
 }
 
-// TappableBox 是一个自定义组件，允许容器响应点击事件
-type TappableBox struct {
-    widget.BaseWidget
-    content  *fyne.Container
-    OnTapped func()
-}
-
-func newTappableBox(content *fyne.Container, onTapped func()) *TappableBox {
-    b := &TappableBox{content: content, OnTapped: onTapped}
-    b.ExtendBaseWidget(b)
-    return b
-}
-
-func (b *TappableBox) CreateRenderer() fyne.WidgetRenderer {
-    return widget.NewSimpleRenderer(b.content)
-}
-
-func (b *TappableBox) Tapped(_ *fyne.PointEvent) {
-    if b.OnTapped != nil {
-        b.OnTapped()
-    }
-}
-
 func main() {
+
     configURL := "http://10.245.93.86/printer/printer_config.json"
 
     a := app.New()
     w := a.NewWindow("打印机安装工具 (Go)")
-    w.Resize(fyne.NewSize(1000, 720))
+    w.Resize(fyne.NewSize(1024, 720))
+    w.CenterOnScreen()
+
+    title := canvas.NewText("打印机安装工具", theme.ForegroundColor())
+    title.TextStyle = fyne.TextStyle{Bold: true}
+    title.Alignment = fyne.TextAlignLeading
+    title.TextSize = 20
+
+    // 控件
+    status := widget.NewLabel("就绪")
+    status.TextStyle = fyne.TextStyle{Bold: true}
 
     locationSelect := widget.NewSelect([]string{}, func(s string) {})
+    locationSelect.PlaceHolder = "选择地点"
+
     refreshBtn := widget.NewButton("刷新配置", nil)
+    refreshBtn.Importance = widget.HighImportance
+
     installBtn := widget.NewButton("安装选中的打印机", nil)
+    installBtn.Importance = widget.HighImportance
     installBtn.Disable()
 
-    status := widget.NewLabel("就绪")
-
     printerListContainer := container.NewVBox()
+    printerListContainer.Add(widget.NewLabel("请选择地点..."))
+
     scroll := container.NewVScroll(printerListContainer)
-    scroll.SetMinSize(fyne.NewSize(950, 520))
+    scroll.SetMinSize(fyne.NewSize(980, 560))
 
     var cfg Config
     var printers []Printer
     var checks []*widget.Check
 
     loadConfig := func() {
-        status.SetText("正在下载配置...")
+        status.SetText("正在加载配置...")
         resp, err := http.Get(configURL)
         if err != nil {
-            dialog.ShowError(fmt.Errorf("无法下载配置: %v", err), w)
-            status.SetText("配置加载失败")
+            dialog.ShowError(fmt.Errorf("下载配置失败: %v", err), w)
+            status.SetText("加载失败")
             return
         }
         defer resp.Body.Close()
+
         body, _ := io.ReadAll(resp.Body)
 
         if err := json.Unmarshal(body, &cfg); err != nil {
-            dialog.ShowError(fmt.Errorf("解析配置失败: %v", err), w)
-            status.SetText("配置解析失败")
+            dialog.ShowError(fmt.Errorf("配置文件解析失败: %v", err), w)
+            status.SetText("解析失败")
             return
         }
 
+        // 更新地点列表
         locs := make([]string, 0, len(cfg.Locations))
         for k := range cfg.Locations {
             locs = append(locs, k)
@@ -107,10 +104,13 @@ func main() {
             locationSelect.SetSelected(locs[0])
         }
         locationSelect.Refresh()
-        status.SetText(fmt.Sprintf("配置加载成功 - %d 个地点", len(locs)))
+
+        status.SetText("配置加载成功")
     }
 
-    refreshBtn.OnTapped = func() { go loadConfig() }
+    refreshBtn.OnTapped = func() {
+        go loadConfig()
+    }
 
     updatePrinterList := func(loc string) {
         printerListContainer.Objects = nil
@@ -118,33 +118,46 @@ func main() {
         checks = make([]*widget.Check, len(printers))
 
         for i, p := range printers {
+            idx := i
+
             check := widget.NewCheck("", func(bool) {})
             checks[i] = check
 
-            nameLbl := widget.NewLabel(p.Name)
-            modelLbl := widget.NewLabel(p.Model)
-            ipLbl := widget.NewLabel(p.IP)
+            name := canvas.NewText(p.Name, theme.ForegroundColor())
+            name.TextStyle = fyne.TextStyle{Bold: true}
+            name.TextSize = 16
 
-            rowContainer := container.NewHBox(
-                check,
-                container.NewVBox(nameLbl, modelLbl),
-                layout.NewSpacer(),
-                ipLbl,
+            model := widget.NewLabel("型号：" + p.Model)
+            ip := widget.NewLabel("IP：" + p.IP)
+
+            leftBox := container.NewVBox(name, model)
+            rightBox := container.NewVBox(ip)
+
+            card := container.NewBorder(nil, nil, check, nil,
+                container.NewHBox(
+                    leftBox,
+                    layout.NewSpacer(),
+                    rightBox,
+                ),
             )
-            
-            // 使用自定义的可点击组件包裹行内容
-            row := newTappableBox(rowContainer, func() {
-                check.SetChecked(!check.Checked)
-            })
-            
-            printerListContainer.Add(row)
 
+            cardBox := container.NewVBox(card)
+            cardBox.Add(canvas.NewRectangle(theme.ShadowColor()))
+
+            printerListContainer.Add(card)
+
+            card.OnTapped = func() {
+                check.SetChecked(!check.Checked)
+            }
         }
+
         printerListContainer.Refresh()
         installBtn.Enable()
     }
 
-    locationSelect.OnChanged = func(s string) { updatePrinterList(s) }
+    locationSelect.OnChanged = func(s string) {
+        updatePrinterList(s)
+    }
 
     installBtn.OnTapped = func() {
         selected := []Printer{}
@@ -153,23 +166,43 @@ func main() {
                 selected = append(selected, printers[i])
             }
         }
+
         if len(selected) == 0 {
-            dialog.ShowInformation("提示", "请先选择至少一台打印机", w)
+            dialog.ShowInformation("提示", "请至少选择一台打印机", w)
             return
         }
-        confirm := dialog.NewConfirm("确认安装",
-            fmt.Sprintf("确定安装 %d 台打印机？", len(selected)),
+
+        dialog.ShowConfirm("确认安装",
+            fmt.Sprintf("确定要安装 %d 台打印机？", len(selected)),
             func(ok bool) {
-                if !ok { return }
-                go runInstallFlow(selected, cfg, w, status)
+                if ok {
+                    go runInstallFlow(selected, cfg, w, status)
+                }
             }, w)
-        confirm.Show()
     }
 
-    topBar := container.NewHBox(widget.NewLabel("地点："), locationSelect, refreshBtn, layout.NewSpacer(), status)
-    bottomBar := container.NewHBox(layout.NewSpacer(), installBtn)
-    content := container.NewBorder(topBar, bottomBar, nil, nil, scroll)
-    w.SetContent(content)
+    // 顶栏
+    topBar := container.NewVBox(
+        title,
+        canvas.NewRectangle(theme.ShadowColor()),
+        container.NewHBox(
+            widget.NewLabel("地点："),
+            locationSelect,
+            refreshBtn,
+            layout.NewSpacer(),
+            status,
+        ),
+        canvas.NewRectangle(theme.ShadowColor()),
+    )
+
+    bottomBar := container.NewHBox(
+        layout.NewSpacer(),
+        installBtn,
+    )
+
+    mainLayout := container.NewBorder(topBar, bottomBar, nil, nil, scroll)
+
+    w.SetContent(mainLayout)
 
     go loadConfig()
     w.ShowAndRun()
@@ -177,77 +210,91 @@ func main() {
 
 func runInstallFlow(selected []Printer, cfg Config, w fyne.Window, status *widget.Label) {
     var wg sync.WaitGroup
-    mu := sync.Mutex{}
-    successCnt := 0
-    failList := []string{}
+    var mu sync.Mutex
+    success := 0
+    failed := []string{}
 
-    status.SetText("开始安装...")
+    status.SetText("正在安装...")
+
     for _, p := range selected {
         wg.Add(1)
         go func(pr Printer) {
             defer wg.Done()
+
             ok, err := installSingle(pr, cfg)
             mu.Lock()
             defer mu.Unlock()
             if ok {
-                successCnt++
+                success++
             } else {
-                failList = append(failList, fmt.Sprintf("%s: %v", pr.Name, err))
+                failed = append(failed, fmt.Sprintf("%s: %v", pr.Name, err))
             }
-            status.SetText(fmt.Sprintf("安装中: %d 成功, %d 失败", successCnt, len(failList)))
+            status.SetText(fmt.Sprintf("安装进度: %d 成功, %d 失败", success, len(failed)))
         }(p)
     }
+
     wg.Wait()
 
-    if len(failList) == 0 {
-        dialog.ShowInformation("安装完成", fmt.Sprintf("全部安装成功，共 %d 台", successCnt), w)
+    if len(failed) == 0 {
+        dialog.ShowInformation("完成", fmt.Sprintf("全部成功安装 (%d 台)", success), w)
         status.SetText("安装完成")
     } else {
-        preview := strings.Join(failList, "\n")
-        dialog.ShowError(fmt.Errorf("成功: %d，失败: %d\n%s", successCnt, len(failList), preview), w)
-        status.SetText("安装完成（有失败）")
+        dialog.ShowError(
+            fmt.Errorf("成功 %d, 失败 %d\n%s", success, len(failed), strings.Join(failed, "\n")),
+            w,
+        )
+        status.SetText("安装完成（部分失败）")
     }
 }
 
 func installSingle(p Printer, cfg Config) (bool, error) {
     modelCfg, ok := cfg.PrinterModels[p.Model]
-    if !ok || modelCfg.PPDUrl == "" {
-        return false, fmt.Errorf("未配置型号 %s 的 ppd_url", p.Model)
+    if !ok {
+        return false, fmt.Errorf("未配置型号: %s", p.Model)
     }
-    ppdURL := modelCfg.PPDUrl
 
+    ppdURL := modelCfg.PPDUrl
     if strings.Contains(ppdURL, " ") {
         ppdURL = strings.ReplaceAll(ppdURL, " ", "%20")
     }
 
     tmpfile := filepath.Join(os.TempDir(), filepath.Base(ppdURL))
     out, err := os.Create(tmpfile)
-    if err != nil { return false, err }
+    if err != nil {
+        return false, err
+    }
     defer func() { out.Close(); os.Remove(tmpfile) }()
 
     resp, err := http.Get(ppdURL)
-    if err != nil { return false, err }
+    if err != nil {
+        return false, err
+    }
     defer resp.Body.Close()
 
     _, err = io.Copy(out, resp.Body)
-    if err != nil { return false, err }
-    out.Sync()
+    if err != nil {
+        return false, err
+    }
 
     uri := p.URI
     if uri == "" {
         uri = "ipp://" + p.IP + "/ipp/print"
     }
 
-    checkCmd := exec.Command("lpstat", "-p", p.Name)
-    if err := checkCmd.Run(); err == nil {
-        _ = exec.Command("lpadmin", "-x", p.Name).Run()
+    exec.Command("lpadmin", "-x", p.Name).Run()
+
+    cmd := exec.Command("lpadmin",
+        "-p", p.Name,
+        "-v", uri,
+        "-P", tmpfile,
+        "-E",
+        "-D", fmt.Sprintf("%s (%s)", p.Name, p.Model),
+    )
+
+    b, err := cmd.CombinedOutput()
+    if err != nil {
+        return false, fmt.Errorf("%v: %s", err, string(b))
     }
 
-    cmd := exec.Command("lpadmin", "-p", p.Name, "-v", uri, "-P", tmpfile, "-E",
-        "-D", fmt.Sprintf("%s (%s)", p.Name, p.Model))
-    outb, err := cmd.CombinedOutput()
-    if err != nil {
-        return false, fmt.Errorf("%v: %s", err, string(outb))
-    }
     return true, nil
 }
