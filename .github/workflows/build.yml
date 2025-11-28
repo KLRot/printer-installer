@@ -79,10 +79,12 @@ jobs:
           chmod +x ${APPDIR}/usr/bin/*
           
           # 复制资源文件
-          # 注意：根据本地文件结构，desktop 文件在 appimage/AppDir/ 下
-          cp appimage/AppDir/printer-installer.desktop ${APPDIR}/printer-installer.desktop
+          # 注意：desktop 文件和 AppRun 已经在 appimage/AppDir/ 下，无需复制
+          # cp appimage/AppDir/printer-installer.desktop ${APPDIR}/printer-installer.desktop
+          
           cp assets/printer.png ${APPDIR}/usr/share/icons/printer.png
-          cp appimage/AppDir/AppRun ${APPDIR}/AppRun
+          # cp appimage/AppDir/AppRun ${APPDIR}/AppRun
+          
           chmod +x ${APPDIR}/AppRun
           
           # 打包
