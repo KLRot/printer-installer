@@ -38,9 +38,13 @@ jobs:
           chmod +x appimagetool-x86_64.AppImage
           sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
 
-      # 手动打包 AppImage (复用您的 build.sh 逻辑，但稍作修改以适应路径)
+      # 手动打包 AppImage
       - name: Package AppImage
         run: |
+          # 调试：显示目录结构
+          echo ">>> Listing fyne-cross directory:"
+          ls -R fyne-cross
+
           # 定义变量
           APP_NAME=printer-installer
           APPDIR=appimage/AppDir
@@ -51,10 +55,27 @@ jobs:
           mkdir -p ${APPDIR}/usr/bin
           mkdir -p ${APPDIR}/usr/share/icons
           
-          # 复制 fyne-cross 编译好的二进制文件
+          # 复制二进制文件 (使用 find 查找，避免路径错误)
           echo ">>> Copying binaries..."
-          cp fyne-cross/bin/linux-amd64/${APP_NAME} ${APPDIR}/usr/bin/${APP_NAME}-x86
-          cp fyne-cross/bin/linux-arm64/${APP_NAME} ${APPDIR}/usr/bin/${APP_NAME}-arm64
+          
+          # 查找并复制 amd64 二进制
+          BIN_AMD64=$(find fyne-cross -name "${APP_NAME}" -type f | grep "linux-amd64" | head -n 1)
+          if [ -z "$BIN_AMD64" ]; then
+            echo "Error: Could not find amd64 binary"
+            exit 1
+          fi
+          echo "Found amd64 binary at: $BIN_AMD64"
+          cp "$BIN_AMD64" ${APPDIR}/usr/bin/${APP_NAME}-x86
+          
+          # 查找并复制 arm64 二进制
+          BIN_ARM64=$(find fyne-cross -name "${APP_NAME}" -type f | grep "linux-arm64" | head -n 1)
+          if [ -z "$BIN_ARM64" ]; then
+             echo "Warning: Could not find arm64 binary, skipping..."
+          else
+             echo "Found arm64 binary at: $BIN_ARM64"
+             cp "$BIN_ARM64" ${APPDIR}/usr/bin/${APP_NAME}-arm64
+          fi
+          
           chmod +x ${APPDIR}/usr/bin/*
           
           # 复制资源文件
@@ -65,7 +86,6 @@ jobs:
           
           # 打包
           echo ">>> Creating AppImage..."
-          # 注意：在 Docker/CI 环境中运行 appimagetool 需要 --appimage-extract-and-run 参数或者设置 ARCH
           ARCH=x86_64 appimagetool ${APPDIR} ${DIST}/PrinterInstaller-amd64.AppImage
           
           # 注意：AppImage 本身是特定架构的引导，这里我们打的是 x86_64 的包，
