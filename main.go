@@ -118,8 +118,6 @@ func main() {
         checks = make([]*widget.Check, len(printers))
 
         for i, p := range printers {
-            idx := i
-
             check := widget.NewCheck("", func(bool) {})
             checks[i] = check
 
@@ -145,10 +143,6 @@ func main() {
             cardBox.Add(canvas.NewRectangle(theme.ShadowColor()))
 
             printerListContainer.Add(card)
-
-            card.OnTapped = func() {
-                check.SetChecked(!check.Checked)
-            }
         }
 
         printerListContainer.Refresh()
