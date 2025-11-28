@@ -82,7 +82,10 @@ jobs:
           # 注意：desktop 文件和 AppRun 已经在 appimage/AppDir/ 下，无需复制
           # cp appimage/AppDir/printer-installer.desktop ${APPDIR}/printer-installer.desktop
           
+          # 复制图标到标准目录和 AppDir 根目录 (appimagetool 要求)
           cp assets/printer_icon.png ${APPDIR}/usr/share/icons/printer.png
+          cp assets/printer_icon.png ${APPDIR}/printer.png
+          
           # cp appimage/AppDir/AppRun ${APPDIR}/AppRun
           
           chmod +x ${APPDIR}/AppRun
