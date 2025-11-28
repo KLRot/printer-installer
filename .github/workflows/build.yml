@@ -90,12 +90,19 @@ jobs:
           
           chmod +x ${APPDIR}/AppRun
           
-          # 打包
-          echo ">>> Creating AppImage..."
-          ARCH=x86_64 appimagetool ${APPDIR} ${DIST}/PrinterInstaller-amd64.AppImage
+          # --- 恢复二合一打包逻辑 ---
+          echo ">>> Creating Combined AppImage..."
           
-          # 注意：AppImage 本身是特定架构的引导，这里我们打的是 x86_64 的包，
-          # 但里面包含了两个架构的二进制。AppRun 脚本需要能够区分架构并运行正确的程序。
+          # 1. 放入 x86 二进制
+          cp "$BIN_AMD64" ${APPDIR}/usr/bin/${APP_NAME}-x86
+          
+          # 2. 放入 arm64 二进制
+          cp "$BIN_ARM64" ${APPDIR}/usr/bin/${APP_NAME}-arm64
+          
+          # 3. 打包成一个文件
+          # 注意：生成的 AppImage 默认使用 x86_64 runtime。
+          # 在 ARM64 机器上直接运行可能需要 binfmt_misc 支持或手动解压。
+          ARCH=x86_64 appimagetool ${APPDIR} ${DIST}/PrinterInstaller.AppImage
           
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
