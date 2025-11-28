@@ -29,7 +29,7 @@ jobs:
       # 运行 fyne-cross 进行编译
       - name: Build with fyne-cross
         run: |
-          fyne-cross linux -arch=amd64,arm64 -name printer-installer -ldflags "-s -w"
+          fyne-cross linux -arch=amd64,arm64 -name printer-installer
 
       # 准备 AppImage 打包环境
       - name: Install AppImageTool
