@@ -1,0 +1,82 @@
+name: Build Printer Installer
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux (amd64 & arm64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      # 使用 fyne-cross 自动处理交叉编译依赖
+      - name: Build with fyne-cross
+        uses: fyne-io/fyne-cross@v2
+        with:
+          target: linux
+          arch: amd64,arm64
+          # -strip 减小体积，-name 指定输出文件名
+          args: -strip -name printer-installer
+
+      # 准备 AppImage 打包环境
+      - name: Install AppImageTool
+        run: |
+          wget https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
+
+      # 手动打包 AppImage (复用您的 build.sh 逻辑，但稍作修改以适应路径)
+      - name: Package AppImage
+        run: |
+          # 定义变量
+          APP_NAME=printer-installer
+          APPDIR=appimage/AppDir
+          DIST=dist
+          mkdir -p $DIST
+          
+          # 确保目录存在
+          mkdir -p ${APPDIR}/usr/bin
+          mkdir -p ${APPDIR}/usr/share/icons
+          
+          # 复制 fyne-cross 编译好的二进制文件
+          echo ">>> Copying binaries..."
+          cp fyne-cross/bin/linux-amd64/${APP_NAME} ${APPDIR}/usr/bin/${APP_NAME}-x86
+          cp fyne-cross/bin/linux-arm64/${APP_NAME} ${APPDIR}/usr/bin/${APP_NAME}-arm64
+          chmod +x ${APPDIR}/usr/bin/*
+          
+          # 复制资源文件
+          cp appimage/printer-installer.desktop ${APPDIR}/printer-installer.desktop
+          cp assets/printer.png ${APPDIR}/usr/share/icons/printer.png
+          cp appimage/AppDir/AppRun ${APPDIR}/AppRun
+          chmod +x ${APPDIR}/AppRun
+          
+          # 打包
+          echo ">>> Creating AppImage..."
+          # 注意：在 Docker/CI 环境中运行 appimagetool 需要 --appimage-extract-and-run 参数或者设置 ARCH
+          ARCH=x86_64 appimagetool ${APPDIR} ${DIST}/PrinterInstaller-amd64.AppImage
+          
+          # 注意：AppImage 本身是特定架构的引导，这里我们打的是 x86_64 的包，
+          # 但里面包含了两个架构的二进制。AppRun 脚本需要能够区分架构并运行正确的程序。
+          
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrinterInstaller-AppImage
+          path: dist/*.AppImage
+
+      - name: Upload Raw Binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: Linux-Binaries
+          path: fyne-cross/bin/linux-*/*

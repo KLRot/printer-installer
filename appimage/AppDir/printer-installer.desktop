@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=打印机安装工具 (Go)
+Exec=printer-installer
+Icon=printer
+Type=Application
+Categories=Utility;
+Terminal=false
