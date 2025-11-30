@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,6 +22,27 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
+
+// myLightTheme 自定义亮色主题
+type myLightTheme struct{}
+
+func (m *myLightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	// 使用默认亮色主题的颜色
+	return theme.DefaultTheme().Color(name, theme.VariantLight)
+}
+
+func (m *myLightTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
+	return theme.DefaultTheme().Icon(name)
+}
+
+func (m *myLightTheme) Font(style fyne.TextStyle) fyne.Resource {
+	// 使用系统默认字体以支持中文
+	return theme.DefaultTheme().Font(style)
+}
+
+func (m *myLightTheme) Size(name fyne.ThemeSizeName) float32 {
+	return theme.DefaultTheme().Size(name)
+}
 
 // PrinterConfig 打印机配置结构
 type PrinterConfig struct {
@@ -74,8 +96,13 @@ type PrinterInstallerGUI struct {
 
 // NewPrinterInstallerGUI 创建新的安装程序界面
 func NewPrinterInstallerGUI() *PrinterInstallerGUI {
+	myApp := app.NewWithID("com.kylin.printer.installer")
+	
+	// 设置亮色主题
+	myApp.Settings().SetTheme(&myLightTheme{})
+	
 	gui := &PrinterInstallerGUI{
-		app:          app.NewWithID("com.kylin.printer.installer"),
+		app:          myApp,
 		configURL:    "http://10.245.93.86/printer/printer_config.json",
 		printerData:  make([]Printer, 0),
 		checkedItems: make(map[int]bool),
@@ -84,15 +111,15 @@ func NewPrinterInstallerGUI() *PrinterInstallerGUI {
 	
 	gui.statusText.Set("就绪")
 	
+	// 设置应用图标
+	gui.setAppIcon()
+	
 	return gui
 }
 
 // Run 运行应用程序
 func (gui *PrinterInstallerGUI) Run() {
 	gui.window = gui.app.NewWindow("麒麟系统打印机自动安装程序 v1.0")
-	
-	// 设置窗口图标
-	gui.setWindowIcon()
 	
 	// 设置窗口大小
 	gui.window.Resize(fyne.NewSize(950, 780))
@@ -107,33 +134,41 @@ func (gui *PrinterInstallerGUI) Run() {
 	gui.window.ShowAndRun()
 }
 
-// setWindowIcon 设置窗口图标
-func (gui *PrinterInstallerGUI) setWindowIcon() {
+// setAppIcon 设置应用图标
+func (gui *PrinterInstallerGUI) setAppIcon() {
+	// 注意：使用 fyne-cross 或 fyne package 打包时，
+	// 图标已经通过 -icon 参数嵌入到可执行文件中，
+	// Fyne 会自动使用嵌入的图标，无需手动加载。
+	
+	// 以下代码仅用于开发环境（直接运行 go run 或 go build 时）
+	// 在生产环境（使用 fyne-cross 打包）中，这段代码不会执行
+	
+	// 尝试加载外部图标文件（仅用于开发调试）
+	iconPaths := []string{
+		"printer_icon.png",
+		"assets/printer_icon.png",
+	}
+	
 	// 获取可执行文件所在目录
-	exePath, err := os.Executable()
-	if err != nil {
-		fmt.Printf("警告: 无法获取可执行文件路径: %v\n", err)
-		return
+	if exePath, err := os.Executable(); err == nil {
+		baseDir := filepath.Dir(exePath)
+		iconPaths = append([]string{filepath.Join(baseDir, "printer_icon.png")}, iconPaths...)
 	}
 	
-	baseDir := filepath.Dir(exePath)
-	iconPath := filepath.Join(baseDir, "printer_icon.png")
-	
-	// 如果在可执行文件目录找不到，尝试当前工作目录
-	if _, err := os.Stat(iconPath); os.IsNotExist(err) {
-		iconPath = "printer_icon.png"
-	}
-	
-	if _, err := os.Stat(iconPath); err == nil {
-		icon, err := fyne.LoadResourceFromPath(iconPath)
-		if err == nil {
-			gui.window.SetIcon(icon)
-		} else {
-			fmt.Printf("警告: 无法加载图标文件: %v\n", err)
+	// 尝试加载外部图标（开发环境）
+	for _, iconPath := range iconPaths {
+		if _, err := os.Stat(iconPath); err == nil {
+			if icon, err := fyne.LoadResourceFromPath(iconPath); err == nil {
+				gui.app.SetIcon(icon)
+				fmt.Printf("✓ 开发模式：加载外部图标 %s\n", iconPath)
+				return
+			}
 		}
-	} else {
-		fmt.Printf("提示: 未找到图标文件: %s\n", iconPath)
 	}
+	
+	// 如果没有找到外部图标，说明是打包后的环境
+	// Fyne 会自动使用嵌入的图标，无需任何操作
+	fmt.Println("✓ 生产模式：使用嵌入图标")
 }
 
 // initUI 初始化用户界面

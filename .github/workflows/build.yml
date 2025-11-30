@@ -20,16 +20,37 @@ jobs:
         with:
           go-version: '1.21'
 
+      # 生成 go.sum 文件
+      - name: Download dependencies
+        run: |
+          go mod download
+          go mod tidy
+
       # 安装 fyne-cross 工具
       - name: Install fyne-cross
         run: |
           go install github.com/fyne-io/fyne-cross@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      # 运行 fyne-cross 进行编译
+      # 验证图标文件存在
+      - name: Verify icon file
+        run: |
+          if [ -f "printer_icon.png" ]; then
+            echo "✓ Icon file found: printer_icon.png"
+            file printer_icon.png
+          else
+            echo "✗ Icon file not found!"
+            exit 1
+          fi
+
+      # 运行 fyne-cross 进行编译（带图标）
       - name: Build with fyne-cross
         run: |
-          fyne-cross linux -arch=amd64,arm64 -name printer-installer
+          fyne-cross linux \
+            -arch=amd64,arm64 \
+            -name printer-installer \
+            -icon printer_icon.png \
+            -app-id com.kylin.printer.installer
 
       # 整理二进制文件
       - name: Organize Binaries
@@ -40,19 +61,96 @@ jobs:
           # 查找并复制 amd64 二进制
           BIN_AMD64=$(find fyne-cross -name "${APP_NAME}*" -type f ! -name "*.tar.xz" | grep "linux-amd64" | head -n 1)
           if [ -n "$BIN_AMD64" ]; then
-            echo "Found amd64 binary: $BIN_AMD64"
+            echo "✓ Found amd64 binary: $BIN_AMD64"
             cp "$BIN_AMD64" dist/printer-installer-amd64
+          else
+            echo "✗ amd64 binary not found!"
           fi
           
           # 查找并复制 arm64 二进制
           BIN_ARM64=$(find fyne-cross -name "${APP_NAME}*" -type f ! -name "*.tar.xz" | grep "linux-arm64" | head -n 1)
           if [ -n "$BIN_ARM64" ]; then
-            echo "Found arm64 binary: $BIN_ARM64"
+            echo "✓ Found arm64 binary: $BIN_ARM64"
             cp "$BIN_ARM64" dist/printer-installer-arm64
+          else
+            echo "✗ arm64 binary not found!"
           fi
           
-          chmod +x dist/*
-          ls -l dist/
+          # 注意：图标已经通过 fyne-cross -icon 参数嵌入到可执行文件中
+          # 不需要单独复制图标文件
+          
+          # 设置执行权限
+          chmod +x dist/printer-installer-* 2>/dev/null || true
+          
+          # 显示文件列表
+          echo "=== Build artifacts ==="
+          ls -lh dist/
+
+      # 创建 README
+      - name: Create README
+        run: |
+          cat > dist/README.md << 'EOF'
+          # 麒麟系统打印机自动安装程序
+
+          ## 文件说明
+
+          - `printer-installer-amd64` - x86_64 架构可执行文件（图标已嵌入）
+          - `printer-installer-arm64` - ARM64 架构可执行文件（图标已嵌入）
+
+          ## 使用方法
+
+          ### 1. 选择对应架构的文件
+
+          ```bash
+          # x86_64 系统
+          chmod +x printer-installer-amd64
+          ./printer-installer-amd64
+
+          # ARM64 系统
+          chmod +x printer-installer-arm64
+          ./printer-installer-arm64
+          ```
+
+          ### 2. 图标说明
+
+          图标已经嵌入到可执行文件中，**无需额外的图标文件**。
+          程序运行时会自动显示嵌入的打印机图标。
+
+          ### 3. 安装到系统（可选）
+
+          ```bash
+          # 复制到系统目录
+          sudo cp printer-installer-amd64 /usr/local/bin/printer-installer
+
+          # 运行
+          printer-installer
+          ```
+
+          ## 系统要求
+
+          - 麒麟 Linux 系统
+          - CUPS 打印服务
+          - 网络连接（用于下载配置和 PPD 文件）
+
+          ## 功能特性
+
+          - ✅ 从服务器自动加载打印机配置
+          - ✅ 按地点分类显示打印机
+          - ✅ 批量选择和安装打印机
+          - ✅ 自动下载 PPD 驱动文件
+          - ✅ 实时显示安装进度
+          - ✅ 亮色主题，完整中文支持
+          - ✅ 图标已嵌入，无需额外文件
+
+          ## 注意事项
+
+          1. 需要 lpadmin 权限来安装打印机
+          2. 确保 CUPS 服务正在运行
+          3. 图标已嵌入到可执行文件中，无需单独的图标文件
+
+          ---
+          构建时间: $(date)
+          EOF
 
       # 上传二进制文件
       - name: Upload Binaries
@@ -60,3 +158,33 @@ jobs:
         with:
           name: printer-installer-linux
           path: dist/*
+          retention-days: 30
+
+      # 显示构建摘要
+      - name: Build Summary
+        run: |
+          echo "## 构建完成 ✓" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 生成的文件" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件 | 大小 | 说明 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "dist/printer-installer-amd64" ]; then
+            SIZE=$(ls -lh dist/printer-installer-amd64 | awk '{print $5}')
+            echo "| printer-installer-amd64 | $SIZE | x86_64 可执行文件（图标已嵌入） |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "dist/printer-installer-arm64" ]; then
+            SIZE=$(ls -lh dist/printer-installer-arm64 | awk '{print $5}')
+            echo "| printer-installer-arm64 | $SIZE | ARM64 可执行文件（图标已嵌入） |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 使用说明" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. 下载对应架构的可执行文件" >> $GITHUB_STEP_SUMMARY
+          echo "2. 添加执行权限: \`chmod +x printer-installer-*\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. 运行程序: \`./printer-installer-amd64\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**注意**: 图标已嵌入到可执行文件中，无需额外的图标文件。" >> $GITHUB_STEP_SUMMARY
