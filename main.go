@@ -283,12 +283,8 @@ func (gui *PrinterInstallerGUI) initUI() {
 	titleText.TextStyle = fyne.TextStyle{Bold: true}
 	titleText.Alignment = fyne.TextAlignCenter
 	
-	subTitle := widget.NewLabel("快速 • 智能 • 自动")
-	subTitle.Alignment = fyne.TextAlignCenter
-	
 	headerBox := container.NewVBox(
 		container.NewCenter(titleText),
-		subTitle,
 		widget.NewSeparator(),
 	)
 	
