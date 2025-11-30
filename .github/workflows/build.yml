@@ -26,42 +26,11 @@ jobs:
           go mod download
           go mod tidy
 
-      # 安装 fyne-cross 和 fyne 工具
-      - name: Install tools
+      # 安装 fyne-cross 工具
+      - name: Install fyne-cross
         run: |
           go install github.com/fyne-io/fyne-cross@latest
-          go install fyne.io/fyne/v2/cmd/fyne@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-
-      # 下载并嵌入中文字体
-      - name: Bundle Chinese Font
-        run: |
-          echo "Installing Chinese font..."
-          # 使用 apt-get 安装字体，比 wget 更稳定
-          sudo apt-get update
-          sudo apt-get install -y fonts-wqy-microhei
-          
-          # 复制字体文件
-          cp /usr/share/fonts/truetype/wqy/wqy-microhei.ttc .
-          
-          echo "Bundling font..."
-          # 生成 bundled_font.go
-          fyne bundle -package main -name bundledFont wqy-microhei.ttc > bundled_font.go
-          
-          # 检查生成的文件内容（调试用）
-          echo "Checking bundled_font.go header..."
-          head -n 5 bundled_font.go
-          
-          # 如果文件以 NOTE 开头，说明生成失败，尝试修复
-          if grep -q "^NOTE" bundled_font.go; then
-            echo "Error: fyne bundle output contains NOTE. Cleaning up..."
-            # 删除 NOTE 行（临时修复）
-            sed -i '/^NOTE/d' bundled_font.go
-            head -n 5 bundled_font.go
-          fi
-          
-          echo "✓ Font bundled successfully"
-          ls -lh bundled_font.go
 
       # 验证图标文件存在
       - name: Verify icon file
@@ -76,7 +45,6 @@ jobs:
       # 运行 fyne-cross 进行编译（带图标）
       - name: Build with fyne-cross
         run: |
-          # 注意：bundled_font.go 会自动被包含在编译中
           fyne-cross linux \
             -arch=amd64,arm64 \
             -name printer-installer \
@@ -130,7 +98,15 @@ jobs:
 
           ## 使用方法
 
-          ### 1. 选择对应架构的文件
+          ### 1. 安装中文字体（重要）
+
+          为了正确显示中文，请先安装中文字体：
+
+          ```bash
+          sudo apt-get install fonts-wqy-microhei
+          ```
+
+          ### 2. 选择对应架构的文件
 
           ```bash
           # x86_64 系统
@@ -142,12 +118,12 @@ jobs:
           ./printer-installer-arm64
           ```
 
-          ### 2. 图标说明
+          ### 3. 图标说明
 
           图标已经嵌入到可执行文件中，**无需额外的图标文件**。
           程序运行时会自动显示嵌入的打印机图标。
 
-          ### 3. 安装到系统（可选）
+          ### 4. 安装到系统（可选）
 
           ```bash
           # 复制到系统目录
@@ -214,8 +190,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 使用说明" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. 下载对应架构的可执行文件" >> $GITHUB_STEP_SUMMARY
-          echo "2. 添加执行权限: \`chmod +x printer-installer-*\`" >> $GITHUB_STEP_SUMMARY
-          echo "3. 运行程序: \`./printer-installer-amd64\`" >> $GITHUB_STEP_SUMMARY
+          echo "1. 安装中文字体: \`sudo apt-get install fonts-wqy-microhei\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. 下载对应架构的可执行文件" >> $GITHUB_STEP_SUMMARY
+          echo "3. 添加执行权限: \`chmod +x printer-installer-*\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. 运行程序: \`./printer-installer-amd64\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**注意**: 图标和中文字体都已嵌入到可执行文件中，无需任何额外文件，彻底解决乱码问题。" >> $GITHUB_STEP_SUMMARY
+          echo "**注意**: 图标已嵌入到可执行文件中。中文显示需要系统安装字体。" >> $GITHUB_STEP_SUMMARY

@@ -23,9 +23,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// 嵌入的字体资源 (由 build.yml 生成并注入)
-var bundledFont fyne.Resource
-
 // myLightTheme 自定义亮色主题
 type myLightTheme struct {
 	regular fyne.Resource
@@ -36,6 +33,9 @@ var (
 	// 定义常见的中文字体路径
 	fontPaths = []string{
 		// 麒麟/UKUI 系统字体 (优先级最高)
+		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+		"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+		"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
 		"/usr/share/fonts/truetype/ukui/ukui-default.ttf",
 		"/usr/share/fonts/ukui/ukui-default.ttf",
 		"/usr/share/fonts/truetype/kylin-font/kylin-font.ttf",
@@ -60,15 +60,7 @@ func newLightTheme() *myLightTheme {
 }
 
 func (m *myLightTheme) loadFonts() {
-	// 1. 优先使用编译时嵌入的字体
-	if bundledFont != nil {
-		m.regular = bundledFont
-		m.bold = bundledFont
-		fmt.Println("✓ 使用嵌入的中文字体")
-		return
-	}
-
-	// 2. 优先检查环境变量 FYNE_FONT
+	// 1. 优先检查环境变量 FYNE_FONT
 	if envFont := os.Getenv("FYNE_FONT"); envFont != "" {
 		if _, err := os.Stat(envFont); err == nil {
 			if fontData, err := os.ReadFile(envFont); err == nil {
@@ -80,8 +72,7 @@ func (m *myLightTheme) loadFonts() {
 		}
 	}
 
-	// 3. 尝试加载系统字体
-	fmt.Println("正在搜索系统中文字体...")
+	// 2. 尝试加载系统字体
 	for _, path := range fontPaths {
 		if _, err := os.Stat(path); err == nil {
 			if fontData, err := os.ReadFile(path); err == nil {
@@ -93,7 +84,9 @@ func (m *myLightTheme) loadFonts() {
 		}
 	}
 	
-	fmt.Println("! 警告: 未找到任何中文字体，中文可能会乱码")
+	// 3. 如果都没找到，使用默认字体（可能不支持中文）
+	fmt.Println("! 警告: 未找到中文字体")
+	fmt.Println("! 请安装字体: sudo apt-get install fonts-wqy-microhei")
 }
 
 func (m *myLightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
