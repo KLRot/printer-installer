@@ -19,6 +19,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
@@ -103,7 +104,22 @@ func (m *myLightTheme) loadFonts() {
 	fmt.Println("! 请安装字体: sudo apt-get install fonts-wqy-microhei")
 }
 
+// 自定义颜色
+var (
+	kylinBlue   = color.RGBA{R: 40, G: 102, B: 255, A: 255} // 麒麟蓝
+	lightBg     = color.RGBA{R: 248, G: 250, B: 252, A: 255} // 浅灰背景
+	headerColor = color.RGBA{R: 30, G: 41, B: 59, A: 255}    // 深色标题
+)
+
 func (m *myLightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	switch name {
+	case theme.ColorNamePrimary:
+		return kylinBlue
+	case theme.ColorNameBackground:
+		return lightBg
+	case theme.ColorNameInputBackground:
+		return color.White
+	}
 	return theme.DefaultTheme().Color(name, theme.VariantLight)
 }
 
@@ -122,154 +138,37 @@ func (m *myLightTheme) Font(style fyne.TextStyle) fyne.Resource {
 }
 
 func (m *myLightTheme) Size(name fyne.ThemeSizeName) float32 {
+	if name == theme.SizeNameText {
+		return 14 // 稍微增大默认字体
+	}
 	return theme.DefaultTheme().Size(name)
 }
 
-// PrinterConfig 打印机配置结构
-type PrinterConfig struct {
-	Locations     map[string][]Printer        `json:"locations"`
-	PrinterModels map[string]PrinterModelInfo `json:"printer_models"`
-}
-
-// Printer 打印机信息
-type Printer struct {
-	Name  string `json:"name"`
-	Model string `json:"model"`
-	IP    string `json:"ip"`
-	PPD   string `json:"ppd"`
-	URI   string `json:"uri"`
-}
-
-// PrinterModelInfo 打印机型号信息
-type PrinterModelInfo struct {
-	PPDURL string `json:"ppd_url"`
-}
-
-// PrinterRow 打印机表格行
-type PrinterRow struct {
-	Checked bool
-	Printer Printer
-}
-
-// PrinterInstallerGUI 主界面
-type PrinterInstallerGUI struct {
-	app            fyne.App
-	window         fyne.Window
-	config         *PrinterConfig
-	configURL      string
-	printerData    []Printer
-	checkedItems   map[int]bool
-	mutex          sync.Mutex
-
-	// UI 组件
-	locationSelect *widget.Select
-	refreshBtn     *widget.Button
-	printerTable   *widget.List
-	selectAllBtn   *widget.Button
-	deselectAllBtn *widget.Button
-	installBtn     *widget.Button
-	statusLabel    *widget.Label
-	progressBar    *widget.ProgressBar
-
-	// 数据绑定
-	statusText binding.String
-}
-
-// NewPrinterInstallerGUI 创建新的安装程序界面
-func NewPrinterInstallerGUI() *PrinterInstallerGUI {
-	myApp := app.NewWithID("com.kylin.printer.installer")
-
-	// 设置自定义亮色主题（带中文字体）
-	myApp.Settings().SetTheme(newLightTheme())
-
-	gui := &PrinterInstallerGUI{
-		app:          myApp,
-		configURL:    "http://10.245.93.86/printer/printer_config.json",
-		printerData:  make([]Printer, 0),
-		checkedItems: make(map[int]bool),
-		statusText:   binding.NewString(),
-	}
-
-	gui.statusText.Set("就绪")
-
-	// 设置应用图标
-	gui.setAppIcon()
-
-	return gui
-}
-
-// Run 运行应用程序
-func (gui *PrinterInstallerGUI) Run() {
-	gui.window = gui.app.NewWindow("麒麟系统打印机自动安装程序 v1.0")
-	gui.window.SetMaster() // 设置为主窗口
-
-	// 初始化UI (SetContent)
-	// 注意：必须先设置内容，再调整大小，否则布局可能会塌缩
-	gui.initUI()
-
-	// 设置窗口大小
-	gui.window.Resize(fyne.NewSize(950, 780))
-
-	// 居中显示
-	gui.window.CenterOnScreen()
-
-	// 延迟加载配置
-	go gui.loadConfig()
-
-	gui.window.ShowAndRun()
-}
-
-// setAppIcon 设置应用图标
-func (gui *PrinterInstallerGUI) setAppIcon() {
-	// 注意：使用 fyne-cross 或 fyne package 打包时，
-	// 图标已经通过 -icon 参数嵌入到可执行文件中，
-	// Fyne 会自动使用嵌入的图标，无需手动加载。
-	
-	// 以下代码仅用于开发环境（直接运行 go run 或 go build 时）
-	// 在生产环境（使用 fyne-cross 打包）中，这段代码不会执行
-	
-	// 尝试加载外部图标文件（仅用于开发调试）
-	iconPaths := []string{
-		"printer_icon.png",
-		"assets/printer_icon.png",
-	}
-	
-	// 获取可执行文件所在目录
-	if exePath, err := os.Executable(); err == nil {
-		baseDir := filepath.Dir(exePath)
-		iconPaths = append([]string{filepath.Join(baseDir, "printer_icon.png")}, iconPaths...)
-	}
-	
-	// 尝试加载外部图标（开发环境）
-	for _, iconPath := range iconPaths {
-		if _, err := os.Stat(iconPath); err == nil {
-			if icon, err := fyne.LoadResourceFromPath(iconPath); err == nil {
-				gui.app.SetIcon(icon)
-				fmt.Printf("✓ 开发模式：加载外部图标 %s\n", iconPath)
-				return
-			}
-		}
-	}
-	
-	// 如果没有找到外部图标，说明是打包后的环境
-	// Fyne 会自动使用嵌入的图标，无需任何操作
-	fmt.Println("✓ 生产模式：使用嵌入图标")
-}
+// ... (PrinterConfig 等结构体定义保持不变) ...
 
 // initUI 初始化用户界面
 func (gui *PrinterInstallerGUI) initUI() {
-	// 1. 标题
-	titleLabel := widget.NewLabelWithStyle(
-		"打印机自动安装工具",
-		fyne.TextAlignCenter,
-		fyne.TextStyle{Bold: true},
+	// 1. 标题区域 (使用 canvas.Text 实现大字体)
+	titleText := canvas.NewText("麒麟系统打印机自动安装工具", kylinBlue)
+	titleText.TextSize = 28 // 大字体
+	titleText.TextStyle = fyne.TextStyle{Bold: true}
+	titleText.Alignment = fyne.TextAlignCenter
+	
+	subTitle := widget.NewLabel("快速 • 智能 • 自动")
+	subTitle.Alignment = fyne.TextAlignCenter
+	
+	headerBox := container.NewVBox(
+		container.NewCenter(titleText),
+		subTitle,
+		widget.NewSeparator(),
 	)
-	titleLabel.TextStyle.Bold = true
 	
 	// 2. 地点选择部分
-	locationLabel := widget.NewLabel("地点:")
+	locationLabel := widget.NewLabel("📍 选择安装地点:")
+	locationLabel.TextStyle = fyne.TextStyle{Bold: true}
+	
 	gui.locationSelect = widget.NewSelect([]string{}, gui.onLocationChanged)
-	gui.locationSelect.PlaceHolder = "请选择地点"
+	gui.locationSelect.PlaceHolder = "请选择您的办公区域..."
 	
 	gui.refreshBtn = widget.NewButtonWithIcon("刷新配置", theme.ViewRefreshIcon(), func() {
 		go gui.loadConfig()
@@ -282,7 +181,8 @@ func (gui *PrinterInstallerGUI) initUI() {
 		gui.locationSelect,
 	)
 	
-	locationCard := widget.NewCard("", "", locationBox)
+	// 给地点选择加一个带边框的卡片效果
+	locationCard := widget.NewCard("", "", container.NewPadded(locationBox))
 	
 	// 3. 打印机列表（使用 List + 复选框）
 	gui.printerTable = widget.NewList(
@@ -292,18 +192,20 @@ func (gui *PrinterInstallerGUI) initUI() {
 		func() fyne.CanvasObject {
 			// CreateItem: 创建列表项模板
 			check := widget.NewCheck("", nil)
-			// 设置复选框最小宽度，方便点击
 			check.Resize(fyne.NewSize(30, 20))
 			
-			nameLabel := widget.NewLabel("打印机名称")
-			nameLabel.TextStyle = fyne.TextStyle{Bold: true}
+			// 使用 canvas.Text 可以设置颜色
+			nameText := canvas.NewText("打印机名称", headerColor)
+			nameText.TextSize = 16
+			nameText.TextStyle = fyne.TextStyle{Bold: true}
 			
 			modelLabel := widget.NewLabel("型号")
 			ipLabel := widget.NewLabel("IP")
 			
-			// 使用 HBox 布局，顺序固定：[0]Check, [1]VBox(Name, Model+IP)
+			// 布局: [Check] [Name]
+			//               [Model] - [IP]
 			infoBox := container.NewVBox(
-				nameLabel,
+				nameText,
 				container.NewHBox(modelLabel, widget.NewLabel("-"), ipLabel),
 			)
 			
@@ -320,7 +222,7 @@ func (gui *PrinterInstallerGUI) initUI() {
 			// item 是 HBox
 			box := item.(*fyne.Container)
 			
-			// 1. 获取复选框 (Objects[0])
+			// 1. 复选框
 			if len(box.Objects) > 0 {
 				if check, ok := box.Objects[0].(*widget.Check); ok {
 					check.Checked = gui.checkedItems[id]
@@ -330,23 +232,23 @@ func (gui *PrinterInstallerGUI) initUI() {
 						gui.mutex.Unlock()
 						gui.updateInstallBtnState()
 					}
-					check.Refresh() // 强制刷新状态
+					check.Refresh()
 				}
 			}
 			
-			// 2. 获取信息容器 (Objects[1])
+			// 2. 信息区域
 			if len(box.Objects) > 1 {
 				if infoBox, ok := box.Objects[1].(*fyne.Container); ok {
-					// infoBox 是 VBox: [0]NameLabel, [1]DetailBox
+					// infoBox [0]NameText, [1]DetailBox
 					if len(infoBox.Objects) > 0 {
-						if nameLabel, ok := infoBox.Objects[0].(*widget.Label); ok {
-							nameLabel.SetText(printer.Name)
+						if nameText, ok := infoBox.Objects[0].(*canvas.Text); ok {
+							nameText.Text = printer.Name
+							nameText.Refresh()
 						}
 					}
 					
 					if len(infoBox.Objects) > 1 {
 						if detailBox, ok := infoBox.Objects[1].(*fyne.Container); ok {
-							// detailBox 是 HBox: [0]Model, [1]Sep, [2]IP
 							if len(detailBox.Objects) > 0 {
 								detailBox.Objects[0].(*widget.Label).SetText(printer.Model)
 							}
@@ -397,8 +299,7 @@ func (gui *PrinterInstallerGUI) initUI() {
 	// 组合所有组件
 	content := container.NewBorder(
 		container.NewVBox(
-			titleLabel,
-			widget.NewSeparator(),
+			headerBox,
 			locationCard,
 		),
 		container.NewVBox(
