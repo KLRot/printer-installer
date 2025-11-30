@@ -11,9 +11,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -288,54 +290,73 @@ func (gui *PrinterInstallerGUI) initUI() {
 			return len(gui.printerData)
 		},
 		func() fyne.CanvasObject {
-			// 创建列表项模板
+			// CreateItem: 创建列表项模板
 			check := widget.NewCheck("", nil)
+			// 设置复选框最小宽度，方便点击
+			check.Resize(fyne.NewSize(30, 20))
+			
 			nameLabel := widget.NewLabel("打印机名称")
+			nameLabel.TextStyle = fyne.TextStyle{Bold: true}
+			
 			modelLabel := widget.NewLabel("型号")
 			ipLabel := widget.NewLabel("IP")
 			
-			return container.NewBorder(
-				nil, nil,
-				check,
-				nil, // No left object for border
-				container.NewHBox(
-					container.NewGridWithColumns(3,
-						nameLabel,
-						modelLabel,
-						ipLabel,
-					),
-				),
+			// 使用 HBox 布局，顺序固定：[0]Check, [1]VBox(Name, Model+IP)
+			infoBox := container.NewVBox(
+				nameLabel,
+				container.NewHBox(modelLabel, widget.NewLabel("-"), ipLabel),
 			)
+			
+			return container.NewHBox(check, infoBox)
 		},
 		func(id widget.ListItemID, item fyne.CanvasObject) {
+			// UpdateItem: 更新数据
 			if id >= len(gui.printerData) {
 				return
 			}
 			
 			printer := gui.printerData[id]
-			border := item.(*fyne.Container)
 			
-			// 获取复选框
-			check := border.Objects[0].(*widget.Check)
-			check.Checked = gui.checkedItems[id]
-			check.OnChanged = func(checked bool) {
-				gui.mutex.Lock()
-				gui.checkedItems[id] = checked
-				gui.mutex.Unlock()
-				gui.updateInstallBtnState() // Changed from updateInstallButton to updateInstallBtnState
+			// item 是 HBox
+			box := item.(*fyne.Container)
+			
+			// 1. 获取复选框 (Objects[0])
+			if len(box.Objects) > 0 {
+				if check, ok := box.Objects[0].(*widget.Check); ok {
+					check.Checked = gui.checkedItems[id]
+					check.OnChanged = func(checked bool) {
+						gui.mutex.Lock()
+						gui.checkedItems[id] = checked
+						gui.mutex.Unlock()
+						gui.updateInstallBtnState()
+					}
+					check.Refresh() // 强制刷新状态
+				}
 			}
 			
-			// 获取标签容器
-			rightBox := border.Objects[1].(*fyne.Container)
-			grid := rightBox.Objects[0].(*fyne.Container)
-			
-			nameLabel := grid.Objects[0].(*widget.Label)
-			modelLabel := grid.Objects[1].(*widget.Label)
-			ipLabel := grid.Objects[2].(*widget.Label)
-			
-			nameLabel.SetText(printer.Name)
-			modelLabel.SetText(fmt.Sprintf("型号: %s", printer.Model))
-			ipLabel.SetText(fmt.Sprintf("IP: %s", printer.IP))
+			// 2. 获取信息容器 (Objects[1])
+			if len(box.Objects) > 1 {
+				if infoBox, ok := box.Objects[1].(*fyne.Container); ok {
+					// infoBox 是 VBox: [0]NameLabel, [1]DetailBox
+					if len(infoBox.Objects) > 0 {
+						if nameLabel, ok := infoBox.Objects[0].(*widget.Label); ok {
+							nameLabel.SetText(printer.Name)
+						}
+					}
+					
+					if len(infoBox.Objects) > 1 {
+						if detailBox, ok := infoBox.Objects[1].(*fyne.Container); ok {
+							// detailBox 是 HBox: [0]Model, [1]Sep, [2]IP
+							if len(detailBox.Objects) > 0 {
+								detailBox.Objects[0].(*widget.Label).SetText(printer.Model)
+							}
+							if len(detailBox.Objects) > 2 {
+								detailBox.Objects[2].(*widget.Label).SetText(printer.IP)
+							}
+						}
+					}
+				}
+			}
 		},
 	)
 	
@@ -668,10 +689,21 @@ func (gui *PrinterInstallerGUI) installSinglePrinter(printer Printer) (bool, str
 }
 
 func main() {
-	// 捕获 panic，避免 core dump
+	// 捕获 Panic 并写入日志文件
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("程序发生错误:", r)
+			err := fmt.Errorf("程序发生严重错误: %v\n堆栈信息:\n%s", r, string(debug.Stack()))
+			fmt.Println(err)
+			
+			// 写入 crash.log
+			f, _ := os.OpenFile("crash.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if f != nil {
+				f.WriteString(fmt.Sprintf("\n[%s] %v\n", time.Now().Format(time.RFC3339), err))
+				f.Close()
+			}
+			
+			// 尝试显示错误对话框（如果 UI 还没死）
+			// 注意：如果 Fyne 驱动已经崩溃，这可能不起作用
 			os.Exit(1)
 		}
 	}()
@@ -686,3 +718,4 @@ func main() {
 	
 	gui.Run()
 }
+```
