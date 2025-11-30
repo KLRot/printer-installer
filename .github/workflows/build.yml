@@ -36,13 +36,29 @@ jobs:
       # 下载并嵌入中文字体
       - name: Bundle Chinese Font
         run: |
-          echo "Downloading Chinese font..."
-          # 下载文泉驿微米黑字体 (约 5MB)
-          wget -O wqy-microhei.ttc https://github.com/anthonyfok/fonts-wqy-microhei/raw/master/wqy-microhei.ttc
+          echo "Installing Chinese font..."
+          # 使用 apt-get 安装字体，比 wget 更稳定
+          sudo apt-get update
+          sudo apt-get install -y fonts-wqy-microhei
+          
+          # 复制字体文件
+          cp /usr/share/fonts/truetype/wqy/wqy-microhei.ttc .
           
           echo "Bundling font..."
-          # 将字体打包为 Go 代码，包名为 main，变量名为 bundledFont
+          # 生成 bundled_font.go
           fyne bundle -package main -name bundledFont wqy-microhei.ttc > bundled_font.go
+          
+          # 检查生成的文件内容（调试用）
+          echo "Checking bundled_font.go header..."
+          head -n 5 bundled_font.go
+          
+          # 如果文件以 NOTE 开头，说明生成失败，尝试修复
+          if grep -q "^NOTE" bundled_font.go; then
+            echo "Error: fyne bundle output contains NOTE. Cleaning up..."
+            # 删除 NOTE 行（临时修复）
+            sed -i '/^NOTE/d' bundled_font.go
+            head -n 5 bundled_font.go
+          fi
           
           echo "✓ Font bundled successfully"
           ls -lh bundled_font.go
