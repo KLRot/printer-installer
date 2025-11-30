@@ -26,18 +26,32 @@ jobs:
           go mod download
           go mod tidy
 
-      # 安装 fyne-cross 工具
-      - name: Install fyne-cross
+      # 安装 fyne-cross 和 fyne 工具
+      - name: Install tools
         run: |
           go install github.com/fyne-io/fyne-cross@latest
+          go install fyne.io/fyne/v2/cmd/fyne@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      # 下载并嵌入中文字体
+      - name: Bundle Chinese Font
+        run: |
+          echo "Downloading Chinese font..."
+          # 下载文泉驿微米黑字体 (约 5MB)
+          wget -O wqy-microhei.ttc https://github.com/anthonyfok/fonts-wqy-microhei/raw/master/wqy-microhei.ttc
+          
+          echo "Bundling font..."
+          # 将字体打包为 Go 代码，包名为 main，变量名为 bundledFont
+          fyne bundle -package main -name bundledFont wqy-microhei.ttc > bundled_font.go
+          
+          echo "✓ Font bundled successfully"
+          ls -lh bundled_font.go
 
       # 验证图标文件存在
       - name: Verify icon file
         run: |
           if [ -f "printer_icon.png" ]; then
             echo "✓ Icon file found: printer_icon.png"
-            file printer_icon.png
           else
             echo "✗ Icon file not found!"
             exit 1
@@ -46,6 +60,7 @@ jobs:
       # 运行 fyne-cross 进行编译（带图标）
       - name: Build with fyne-cross
         run: |
+          # 注意：bundled_font.go 会自动被包含在编译中
           fyne-cross linux \
             -arch=amd64,arm64 \
             -name printer-installer \
@@ -172,12 +187,12 @@ jobs:
           
           if [ -f "dist/printer-installer-amd64" ]; then
             SIZE=$(ls -lh dist/printer-installer-amd64 | awk '{print $5}')
-            echo "| printer-installer-amd64 | $SIZE | x86_64 可执行文件（图标已嵌入） |" >> $GITHUB_STEP_SUMMARY
+            echo "| printer-installer-amd64 | $SIZE | x86_64 可执行文件（图标+字体已嵌入） |" >> $GITHUB_STEP_SUMMARY
           fi
           
           if [ -f "dist/printer-installer-arm64" ]; then
             SIZE=$(ls -lh dist/printer-installer-arm64 | awk '{print $5}')
-            echo "| printer-installer-arm64 | $SIZE | ARM64 可执行文件（图标已嵌入） |" >> $GITHUB_STEP_SUMMARY
+            echo "| printer-installer-arm64 | $SIZE | ARM64 可执行文件（图标+字体已嵌入） |" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -187,4 +202,4 @@ jobs:
           echo "2. 添加执行权限: \`chmod +x printer-installer-*\`" >> $GITHUB_STEP_SUMMARY
           echo "3. 运行程序: \`./printer-installer-amd64\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**注意**: 图标已嵌入到可执行文件中，无需额外的图标文件。" >> $GITHUB_STEP_SUMMARY
+          echo "**注意**: 图标和中文字体都已嵌入到可执行文件中，无需任何额外文件，彻底解决乱码问题。" >> $GITHUB_STEP_SUMMARY

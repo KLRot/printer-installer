@@ -23,6 +23,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// 嵌入的字体资源 (由 build.yml 生成并注入)
+var bundledFont fyne.Resource
+
 // myLightTheme 自定义亮色主题
 type myLightTheme struct {
 	regular fyne.Resource
@@ -32,12 +35,20 @@ type myLightTheme struct {
 var (
 	// 定义常见的中文字体路径
 	fontPaths = []string{
+		// 麒麟/UKUI 系统字体 (优先级最高)
+		"/usr/share/fonts/truetype/ukui/ukui-default.ttf",
+		"/usr/share/fonts/ukui/ukui-default.ttf",
+		"/usr/share/fonts/truetype/kylin-font/kylin-font.ttf",
+		
+		// 通用 Linux 字体
 		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
-		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-		"C:\\Windows\\Fonts\\msyh.ttc", // Windows 兼容
+		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+		
+		// Windows 兼容
+		"C:\\Windows\\Fonts\\msyh.ttc",
 		"C:\\Windows\\Fonts\\simhei.ttf",
 	}
 )
@@ -49,18 +60,40 @@ func newLightTheme() *myLightTheme {
 }
 
 func (m *myLightTheme) loadFonts() {
-	// 尝试加载中文字体
-	for _, path := range fontPaths {
-		if _, err := os.Stat(path); err == nil {
-			if fontData, err := os.ReadFile(path); err == nil {
+	// 1. 优先使用编译时嵌入的字体
+	if bundledFont != nil {
+		m.regular = bundledFont
+		m.bold = bundledFont
+		fmt.Println("✓ 使用嵌入的中文字体")
+		return
+	}
+
+	// 2. 优先检查环境变量 FYNE_FONT
+	if envFont := os.Getenv("FYNE_FONT"); envFont != "" {
+		if _, err := os.Stat(envFont); err == nil {
+			if fontData, err := os.ReadFile(envFont); err == nil {
 				m.regular = fyne.NewStaticResource("regular", fontData)
-				m.bold = fyne.NewStaticResource("bold", fontData) // 暂时用同一个字体
-				fmt.Printf("✓ 已加载系统字体: %s\n", path)
+				m.bold = fyne.NewStaticResource("bold", fontData)
+				fmt.Printf("✓ 使用环境变量指定的字体: %s\n", envFont)
 				return
 			}
 		}
 	}
-	fmt.Println("! 未找到系统中文字体，中文可能会乱码")
+
+	// 3. 尝试加载系统字体
+	fmt.Println("正在搜索系统中文字体...")
+	for _, path := range fontPaths {
+		if _, err := os.Stat(path); err == nil {
+			if fontData, err := os.ReadFile(path); err == nil {
+				m.regular = fyne.NewStaticResource("regular", fontData)
+				m.bold = fyne.NewStaticResource("bold", fontData)
+				fmt.Printf("✓ 成功加载系统字体: %s\n", path)
+				return
+			}
+		}
+	}
+	
+	fmt.Println("! 警告: 未找到任何中文字体，中文可能会乱码")
 }
 
 func (m *myLightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
@@ -411,8 +444,8 @@ func (gui *PrinterInstallerGUI) updateLocations() {
 		gui.locationSelect.SetSelected(locations[0])
 		gui.statusText.Set(fmt.Sprintf("配置加载成功 - 共 %d 个地点", len(locations)))
 		
-		// 显示成功通知
-		dialog.ShowInformation("成功", "配置文件加载成功", gui.window)
+		// 移除成功弹窗，避免打扰用户
+		// dialog.ShowInformation("成功", "配置文件加载成功", gui.window)
 	} else {
 		gui.statusText.Set("配置加载成功 - 但没有地点数据")
 		dialog.ShowInformation("警告", "配置文件中没有找到任何地点信息", gui.window)
