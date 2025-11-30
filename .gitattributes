@@ -1,0 +1,12 @@
+# 确保字体文件以二进制方式处理
+*.otf binary
+*.ttf binary
+*.ttc binary
+*.woff binary
+*.woff2 binary
+
+# 图标文件
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary

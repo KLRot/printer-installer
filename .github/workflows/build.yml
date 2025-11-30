@@ -32,6 +32,17 @@ jobs:
           go install github.com/fyne-io/fyne-cross@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
+      # 验证字体文件存在（已在仓库中）
+      - name: Verify font file
+        run: |
+          if [ -f "NotoSansSC-Regular.otf" ]; then
+            echo "✓ Font file found: NotoSansSC-Regular.otf"
+            ls -lh NotoSansSC-Regular.otf
+          else
+            echo "✗ Font file not found!"
+            exit 1
+          fi
+
       # 验证图标文件存在
       - name: Verify icon file
         run: |
@@ -93,20 +104,12 @@ jobs:
 
           ## 文件说明
 
-          - `printer-installer-amd64` - x86_64 架构可执行文件（图标已嵌入）
-          - `printer-installer-arm64` - ARM64 架构可执行文件（图标已嵌入）
+          - `printer-installer-amd64` - x86_64 架构可执行文件（图标+字体已嵌入）
+          - `printer-installer-arm64` - ARM64 架构可执行文件（图标+字体已嵌入）
 
           ## 使用方法
 
-          ### 1. 安装中文字体（重要）
-
-          为了正确显示中文，请先安装中文字体：
-
-          ```bash
-          sudo apt-get install fonts-wqy-microhei
-          ```
-
-          ### 2. 选择对应架构的文件
+          ### 1. 选择对应架构的文件
 
           ```bash
           # x86_64 系统
@@ -118,12 +121,15 @@ jobs:
           ./printer-installer-arm64
           ```
 
-          ### 3. 图标说明
+          **无需安装任何字体！** 程序已内置 Noto Sans SC 中文字体。
 
-          图标已经嵌入到可执行文件中，**无需额外的图标文件**。
-          程序运行时会自动显示嵌入的打印机图标。
+          ### 2. 图标和字体说明
 
-          ### 4. 安装到系统（可选）
+          - 图标已嵌入到可执行文件中
+          - 中文字体（Noto Sans SC）已嵌入到可执行文件中
+          - **完全独立运行，无需任何外部依赖**
+
+          ### 3. 安装到系统（可选）
 
           ```bash
           # 复制到系统目录
@@ -190,9 +196,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 使用说明" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. 安装中文字体: \`sudo apt-get install fonts-wqy-microhei\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. 下载对应架构的可执行文件" >> $GITHUB_STEP_SUMMARY
-          echo "3. 添加执行权限: \`chmod +x printer-installer-*\`" >> $GITHUB_STEP_SUMMARY
-          echo "4. 运行程序: \`./printer-installer-amd64\`" >> $GITHUB_STEP_SUMMARY
+          echo "1. 下载对应架构的可执行文件" >> $GITHUB_STEP_SUMMARY
+          echo "2. 添加执行权限: \`chmod +x printer-installer-*\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. 运行程序: \`./printer-installer-amd64\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**注意**: 图标已嵌入到可执行文件中。中文显示需要系统安装字体。" >> $GITHUB_STEP_SUMMARY
+          echo "**注意**: 图标和中文字体都已嵌入，完全独立运行，无需安装任何依赖！" >> $GITHUB_STEP_SUMMARY

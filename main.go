@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"image/color"
@@ -23,6 +24,9 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+//go:embed NotoSansSC-Regular.otf
+var embeddedFontData []byte
+
 // myLightTheme 自定义亮色主题
 type myLightTheme struct {
 	regular fyne.Resource
@@ -31,21 +35,21 @@ type myLightTheme struct {
 
 var (
 	// 定义常见的中文字体路径
+	// 注意：只包含支持中文的字体！
 	fontPaths = []string{
 		// 麒麟/UKUI 系统字体 (优先级最高)
-		"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-		"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-		"/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
 		"/usr/share/fonts/truetype/ukui/ukui-default.ttf",
 		"/usr/share/fonts/ukui/ukui-default.ttf",
 		"/usr/share/fonts/truetype/kylin-font/kylin-font.ttf",
 		
-		// 通用 Linux 字体
+		// 通用 Linux 中文字体
 		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
 		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
 		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
 		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
 		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+		"/usr/share/fonts/truetype/arphic/uming.ttc",
+		"/usr/share/fonts/truetype/arphic/ukai.ttc",
 		
 		// Windows 兼容
 		"C:\\Windows\\Fonts\\msyh.ttc",
@@ -60,7 +64,15 @@ func newLightTheme() *myLightTheme {
 }
 
 func (m *myLightTheme) loadFonts() {
-	// 1. 优先检查环境变量 FYNE_FONT
+	// 1. 优先使用嵌入的字体（最可靠）
+	if len(embeddedFontData) > 0 {
+		m.regular = fyne.NewStaticResource("NotoSansSC-Regular.otf", embeddedFontData)
+		m.bold = m.regular // 使用同一字体
+		fmt.Println("✓ 使用嵌入的中文字体 (Noto Sans SC)")
+		return
+	}
+
+	// 2. 检查环境变量 FYNE_FONT
 	if envFont := os.Getenv("FYNE_FONT"); envFont != "" {
 		if _, err := os.Stat(envFont); err == nil {
 			if fontData, err := os.ReadFile(envFont); err == nil {
@@ -72,7 +84,7 @@ func (m *myLightTheme) loadFonts() {
 		}
 	}
 
-	// 2. 尝试加载系统字体
+	// 3. 尝试加载系统字体（后备方案）
 	for _, path := range fontPaths {
 		if _, err := os.Stat(path); err == nil {
 			if fontData, err := os.ReadFile(path); err == nil {
@@ -84,7 +96,7 @@ func (m *myLightTheme) loadFonts() {
 		}
 	}
 	
-	// 3. 如果都没找到，使用默认字体（可能不支持中文）
+	// 4. 如果都没找到，使用默认字体（可能不支持中文）
 	fmt.Println("! 警告: 未找到中文字体")
 	fmt.Println("! 请安装字体: sudo apt-get install fonts-wqy-microhei")
 }
