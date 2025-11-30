@@ -24,10 +24,46 @@ import (
 )
 
 // myLightTheme 自定义亮色主题
-type myLightTheme struct{}
+type myLightTheme struct {
+	regular fyne.Resource
+	bold    fyne.Resource
+}
+
+var (
+	// 定义常见的中文字体路径
+	fontPaths = []string{
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+		"C:\\Windows\\Fonts\\msyh.ttc", // Windows 兼容
+		"C:\\Windows\\Fonts\\simhei.ttf",
+	}
+)
+
+func newLightTheme() *myLightTheme {
+	theme := &myLightTheme{}
+	theme.loadFonts()
+	return theme
+}
+
+func (m *myLightTheme) loadFonts() {
+	// 尝试加载中文字体
+	for _, path := range fontPaths {
+		if _, err := os.Stat(path); err == nil {
+			if fontData, err := os.ReadFile(path); err == nil {
+				m.regular = fyne.NewStaticResource("regular", fontData)
+				m.bold = fyne.NewStaticResource("bold", fontData) // 暂时用同一个字体
+				fmt.Printf("✓ 已加载系统字体: %s\n", path)
+				return
+			}
+		}
+	}
+	fmt.Println("! 未找到系统中文字体，中文可能会乱码")
+}
 
 func (m *myLightTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	// 使用默认亮色主题的颜色
 	return theme.DefaultTheme().Color(name, theme.VariantLight)
 }
 
@@ -36,7 +72,12 @@ func (m *myLightTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 }
 
 func (m *myLightTheme) Font(style fyne.TextStyle) fyne.Resource {
-	// 使用系统默认字体以支持中文
+	if m.regular != nil {
+		if style.Bold {
+			return m.bold
+		}
+		return m.regular
+	}
 	return theme.DefaultTheme().Font(style)
 }
 
@@ -46,7 +87,7 @@ func (m *myLightTheme) Size(name fyne.ThemeSizeName) float32 {
 
 // PrinterConfig 打印机配置结构
 type PrinterConfig struct {
-	Locations     map[string][]Printer       `json:"locations"`
+	Locations     map[string][]Printer        `json:"locations"`
 	PrinterModels map[string]PrinterModelInfo `json:"printer_models"`
 }
 
@@ -79,7 +120,7 @@ type PrinterInstallerGUI struct {
 	printerData    []Printer
 	checkedItems   map[int]bool
 	mutex          sync.Mutex
-	
+
 	// UI 组件
 	locationSelect *widget.Select
 	refreshBtn     *widget.Button
@@ -89,7 +130,7 @@ type PrinterInstallerGUI struct {
 	installBtn     *widget.Button
 	statusLabel    *widget.Label
 	progressBar    *widget.ProgressBar
-	
+
 	// 数据绑定
 	statusText binding.String
 }
@@ -97,10 +138,10 @@ type PrinterInstallerGUI struct {
 // NewPrinterInstallerGUI 创建新的安装程序界面
 func NewPrinterInstallerGUI() *PrinterInstallerGUI {
 	myApp := app.NewWithID("com.kylin.printer.installer")
-	
-	// 设置亮色主题
-	myApp.Settings().SetTheme(&myLightTheme{})
-	
+
+	// 设置自定义亮色主题（带中文字体）
+	myApp.Settings().SetTheme(newLightTheme())
+
 	gui := &PrinterInstallerGUI{
 		app:          myApp,
 		configURL:    "http://10.245.93.86/printer/printer_config.json",
@@ -108,29 +149,33 @@ func NewPrinterInstallerGUI() *PrinterInstallerGUI {
 		checkedItems: make(map[int]bool),
 		statusText:   binding.NewString(),
 	}
-	
+
 	gui.statusText.Set("就绪")
-	
+
 	// 设置应用图标
 	gui.setAppIcon()
-	
+
 	return gui
 }
 
 // Run 运行应用程序
 func (gui *PrinterInstallerGUI) Run() {
 	gui.window = gui.app.NewWindow("麒麟系统打印机自动安装程序 v1.0")
-	
+	gui.window.SetMaster() // 设置为主窗口
+
+	// 初始化UI (SetContent)
+	// 注意：必须先设置内容，再调整大小，否则布局可能会塌缩
+	gui.initUI()
+
 	// 设置窗口大小
 	gui.window.Resize(fyne.NewSize(950, 780))
+
+	// 居中显示
 	gui.window.CenterOnScreen()
-	
-	// 初始化UI
-	gui.initUI()
-	
+
 	// 延迟加载配置
 	go gui.loadConfig()
-	
+
 	gui.window.ShowAndRun()
 }
 
@@ -597,6 +642,21 @@ func (gui *PrinterInstallerGUI) installSinglePrinter(printer Printer) (bool, str
 }
 
 func main() {
+	// 捕获 panic，避免 core dump
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("程序发生错误:", r)
+			os.Exit(1)
+		}
+	}()
+
 	gui := NewPrinterInstallerGUI()
+	
+	// 设置退出时的清理工作
+	gui.app.Lifecycle().SetOnStopped(func() {
+		// 这里可以添加清理代码
+		fmt.Println("程序正在退出...")
+	})
+	
 	gui.Run()
 }
