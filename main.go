@@ -162,7 +162,7 @@ type PrinterInstallerGUI struct {
 	// UI 组件
 	locationSelect *widget.Select
 	refreshBtn     *widget.Button
-	printerTable   *widget.Table
+	printerTable   *widget.List
 	selectAllBtn   *widget.Button
 	deselectAllBtn *widget.Button
 	installBtn     *widget.Button
@@ -282,69 +282,65 @@ func (gui *PrinterInstallerGUI) initUI() {
 	
 	locationCard := widget.NewCard("", "", locationBox)
 	
-	// 3. 打印机列表表格
-	gui.printerTable = widget.NewTable(
-		func() (int, int) {
-			return len(gui.printerData) + 1, 5 // +1 for header
+	// 3. 打印机列表（使用 List + 复选框）
+	gui.printerTable = widget.NewList(
+		func() int {
+			return len(gui.printerData)
 		},
 		func() fyne.CanvasObject {
-			return widget.NewLabel("Template")
+			// 创建列表项模板
+			check := widget.NewCheck("", nil)
+			nameLabel := widget.NewLabel("打印机名称")
+			modelLabel := widget.NewLabel("型号")
+			ipLabel := widget.NewLabel("IP")
+			
+			return container.NewBorder(
+				nil, nil,
+				check,
+				nil, // No left object for border
+				container.NewHBox(
+					container.NewGridWithColumns(3,
+						nameLabel,
+						modelLabel,
+						ipLabel,
+					),
+				),
+			)
 		},
-		func(id widget.TableCellID, cell fyne.CanvasObject) {
-			label := cell.(*widget.Label)
-			
-			// 表头
-			if id.Row == 0 {
-				headers := []string{"选择", "打印机名称", "型号", "IP地址", "PPD文件"}
-				label.SetText(headers[id.Col])
-				label.TextStyle = fyne.TextStyle{Bold: true}
+		func(id widget.ListItemID, item fyne.CanvasObject) {
+			if id >= len(gui.printerData) {
 				return
 			}
 			
-			// 数据行
-			rowIdx := id.Row - 1
-			if rowIdx >= len(gui.printerData) {
-				label.SetText("")
-				return
+			printer := gui.printerData[id]
+			border := item.(*fyne.Container)
+			
+			// 获取复选框
+			check := border.Objects[0].(*widget.Check)
+			check.Checked = gui.checkedItems[id]
+			check.OnChanged = func(checked bool) {
+				gui.mutex.Lock()
+				gui.checkedItems[id] = checked
+				gui.mutex.Unlock()
+				gui.updateInstallBtnState() // Changed from updateInstallButton to updateInstallBtnState
 			}
 			
-			printer := gui.printerData[rowIdx]
+			// 获取标签容器
+			rightBox := border.Objects[1].(*fyne.Container)
+			grid := rightBox.Objects[0].(*fyne.Container)
 			
-			switch id.Col {
-			case 0:
-				if gui.checkedItems[rowIdx] {
-					label.SetText("☑")
-				} else {
-					label.SetText("☐")
-				}
-			case 1:
-				label.SetText(printer.Name)
-			case 2:
-				label.SetText(printer.Model)
-			case 3:
-				label.SetText(printer.IP)
-			case 4:
-				label.SetText(printer.PPD)
-			}
-			label.TextStyle = fyne.TextStyle{Bold: false}
+			nameLabel := grid.Objects[0].(*widget.Label)
+			modelLabel := grid.Objects[1].(*widget.Label)
+			ipLabel := grid.Objects[2].(*widget.Label)
+			
+			nameLabel.SetText(printer.Name)
+			modelLabel.SetText(fmt.Sprintf("型号: %s", printer.Model))
+			ipLabel.SetText(fmt.Sprintf("IP: %s", printer.IP))
 		},
 	)
 	
-	// 设置列宽
-	gui.printerTable.SetColumnWidth(0, 60)
-	gui.printerTable.SetColumnWidth(1, 200)
-	gui.printerTable.SetColumnWidth(2, 200)
-	gui.printerTable.SetColumnWidth(3, 120)
-	gui.printerTable.SetColumnWidth(4, 200)
-	
-	// 绑定点击事件
-	gui.printerTable.OnSelected = func(id widget.TableCellID) {
-		if id.Row > 0 && id.Col == 0 { // 点击选择列
-			gui.toggleCheck(id.Row - 1)
-		}
-	}
-	
 	printerCard := widget.NewCard("可用打印机", "", gui.printerTable)
+
 	
 	// 4. 全选/全不选按钮
 	gui.selectAllBtn = widget.NewButton("全选", gui.selectAll)
@@ -473,15 +469,7 @@ func (gui *PrinterInstallerGUI) onLocationChanged(location string) {
 	gui.statusText.Set(fmt.Sprintf("已加载 %d 台打印机", len(gui.printerData)))
 }
 
-// toggleCheck 切换选中状态
-func (gui *PrinterInstallerGUI) toggleCheck(rowIdx int) {
-	gui.mutex.Lock()
-	gui.checkedItems[rowIdx] = !gui.checkedItems[rowIdx]
-	gui.mutex.Unlock()
-	
-	gui.printerTable.Refresh()
-	gui.updateInstallBtnState()
-}
+
 
 // selectAll 全选
 func (gui *PrinterInstallerGUI) selectAll() {
