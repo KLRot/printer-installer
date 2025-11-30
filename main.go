@@ -144,7 +144,136 @@ func (m *myLightTheme) Size(name fyne.ThemeSizeName) float32 {
 	return theme.DefaultTheme().Size(name)
 }
 
-// ... (PrinterConfig 等结构体定义保持不变) ...
+// PrinterConfig 打印机配置结构
+type PrinterConfig struct {
+	Locations     map[string][]Printer        `json:"locations"`
+	PrinterModels map[string]PrinterModelInfo `json:"printer_models"`
+}
+
+// Printer 打印机信息
+type Printer struct {
+	Name  string `json:"name"`
+	Model string `json:"model"`
+	IP    string `json:"ip"`
+	PPD   string `json:"ppd"`
+	URI   string `json:"uri"`
+}
+
+// PrinterModelInfo 打印机型号信息
+type PrinterModelInfo struct {
+	PPDURL string `json:"ppd_url"`
+}
+
+// PrinterRow 打印机表格行
+type PrinterRow struct {
+	Checked bool
+	Printer Printer
+}
+
+// PrinterInstallerGUI 主界面
+type PrinterInstallerGUI struct {
+	app            fyne.App
+	window         fyne.Window
+	config         *PrinterConfig
+	configURL      string
+	printerData    []Printer
+	checkedItems   map[int]bool
+	mutex          sync.Mutex
+
+	// UI 组件
+	locationSelect *widget.Select
+	refreshBtn     *widget.Button
+	printerTable   *widget.List
+	selectAllBtn   *widget.Button
+	deselectAllBtn *widget.Button
+	installBtn     *widget.Button
+	statusLabel    *widget.Label
+	progressBar    *widget.ProgressBar
+
+	// 数据绑定
+	statusText binding.String
+}
+
+// NewPrinterInstallerGUI 创建新的安装程序界面
+func NewPrinterInstallerGUI() *PrinterInstallerGUI {
+	myApp := app.NewWithID("com.kylin.printer.installer")
+
+	// 设置自定义亮色主题（带中文字体）
+	myApp.Settings().SetTheme(newLightTheme())
+
+	gui := &PrinterInstallerGUI{
+		app:          myApp,
+		configURL:    "http://10.245.93.86/printer/printer_config.json",
+		printerData:  make([]Printer, 0),
+		checkedItems: make(map[int]bool),
+		statusText:   binding.NewString(),
+	}
+
+	gui.statusText.Set("就绪")
+
+	// 设置应用图标
+	gui.setAppIcon()
+
+	return gui
+}
+
+// Run 运行应用程序
+func (gui *PrinterInstallerGUI) Run() {
+	gui.window = gui.app.NewWindow("麒麟系统打印机自动安装程序 v1.0")
+	gui.window.SetMaster() // 设置为主窗口
+
+	// 初始化UI (SetContent)
+	// 注意：必须先设置内容，再调整大小，否则布局可能会塌缩
+	gui.initUI()
+
+	// 设置窗口大小
+	gui.window.Resize(fyne.NewSize(950, 780))
+
+	// 居中显示
+	gui.window.CenterOnScreen()
+
+	// 延迟加载配置
+	go gui.loadConfig()
+
+	gui.window.ShowAndRun()
+}
+
+// setAppIcon 设置应用图标
+func (gui *PrinterInstallerGUI) setAppIcon() {
+	// 注意：使用 fyne-cross 或 fyne package 打包时，
+	// 图标已经通过 -icon 参数嵌入到可执行文件中，
+	// Fyne 会自动使用嵌入的图标，无需手动加载。
+	
+	// 以下代码仅用于开发环境（直接运行 go run 或 go build 时）
+	// 在生产环境（使用 fyne-cross 打包）中，这段代码不会执行
+	
+	// 尝试加载外部图标文件（仅用于开发调试）
+	iconPaths := []string{
+		"printer_icon.png",
+		"assets/printer_icon.png",
+	}
+	
+	// 获取可执行文件所在目录
+	if exePath, err := os.Executable(); err == nil {
+		baseDir := filepath.Dir(exePath)
+		iconPaths = append([]string{filepath.Join(baseDir, "printer_icon.png")}, iconPaths...)
+	}
+	
+	// 尝试加载外部图标（开发环境）
+	for _, iconPath := range iconPaths {
+		if _, err := os.Stat(iconPath); err == nil {
+			if icon, err := fyne.LoadResourceFromPath(iconPath); err == nil {
+				gui.app.SetIcon(icon)
+				fmt.Printf("✓ 开发模式：加载外部图标 %s\n", iconPath)
+				return
+			}
+		}
+	}
+	
+	// 如果没有找到外部图标，说明是打包后的环境
+	// Fyne 会自动使用嵌入的图标，无需任何操作
+	fmt.Println("✓ 生产模式：使用嵌入图标")
+}
 
 // initUI 初始化用户界面
 func (gui *PrinterInstallerGUI) initUI() {
