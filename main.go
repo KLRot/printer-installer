@@ -311,7 +311,7 @@ func NewPrinterInstallerGUI() *PrinterInstallerGUI {
 
 	gui := &PrinterInstallerGUI{
 		app:          myApp,
-		configURL:    "http://10.245.93.86/printer/printer_config.json",
+		configURL:    "http://10.245.93.86/printer/printer-config.json",
 		printerData:  make([]Printer, 0),
 		checkedItems: make(map[int]bool),
 		statusText:   binding.NewString(),
