@@ -65,12 +65,12 @@ create_deb() {
     if [ -f "printer_icon.png" ]; then
         echo "  → 复制图标: printer_icon.png"
         # 1. 复制到 pixmaps (传统位置)
-        cp printer_icon.png "${BUILD_DIR}/usr/share/pixmaps/printer-installer.png"
-        chmod 644 "${BUILD_DIR}/usr/share/pixmaps/printer-installer.png"
+        cp printer_icon.png "${BUILD_DIR}/usr/share/pixmaps/kinglong-printerinstaller.png"
+        chmod 644 "${BUILD_DIR}/usr/share/pixmaps/kinglong-printerinstaller.png"
         
         # 2. 复制到 hicolor (现代标准位置，解决开始菜单图标问题)
-        cp printer_icon.png "${BUILD_DIR}/usr/share/icons/hicolor/256x256/apps/printer-installer.png"
-        chmod 644 "${BUILD_DIR}/usr/share/icons/hicolor/256x256/apps/printer-installer.png"
+        cp printer_icon.png "${BUILD_DIR}/usr/share/icons/hicolor/256x256/apps/kinglong-printerinstaller.png"
+        chmod 644 "${BUILD_DIR}/usr/share/icons/hicolor/256x256/apps/kinglong-printerinstaller.png"
     else
         echo "  ⚠ 警告: 找不到 printer_icon.png，将使用系统默认图标"
         echo "  当前目录: $(pwd)"
@@ -88,7 +88,7 @@ Name[zh_CN]=打印机安装程序
 Comment=麒麟系统打印机自动安装工具
 Comment[zh_CN]=麒麟系统打印机自动安装工具
 Exec=/usr/bin/printer-installer
-Icon=printer-installer
+Icon=kinglong-printerinstaller
 Terminal=false
 Categories=System;Settings;
 Keywords=printer;install;打印机;安装;
