@@ -96,6 +96,16 @@ jobs:
           echo "=== Build artifacts ==="
           ls -lh dist/
 
+      # 打包 DEB
+      - name: Build DEB Packages
+        run: |
+          chmod +x build-deb.sh
+          ./build-deb.sh
+          
+          echo ""
+          echo "=== DEB Packages Created ==="
+          ls -lh dist/*.deb
+
       # 创建 README
       - name: Create README
         run: |
