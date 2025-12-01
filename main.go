@@ -28,29 +28,34 @@ import (
 
 // myLightTheme 自定义亮色主题
 type myLightTheme struct {
-	regular fyne.Resource
-	bold    fyne.Resource
+	regular    fyne.Resource
+	bold       fyne.Resource
+	fontLogged bool // 用于避免重复打印调试信息
 }
 
 var (
-	// 定义常见的中文字体路径（优先使用麒麟系统默认字体）
+	// 定义常见的中文字体路径（优先使用 OTF/TTF 格式，避免 TTC 兼容性问题）
 	fontPaths = []string{
-		// Noto Sans CJK SC (麒麟系统默认字体，优先级最高)
-		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+		// Noto Sans CJK SC - OTF 格式（优先级最高，Fyne 支持最好）
+		"/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
 		"/usr/share/fonts/truetype/noto-cjk/NotoSansCJKsc-Regular.otf",
+		"/usr/share/fonts/noto-cjk/NotoSansCJKsc-Regular.otf",
 		
-		// 麒麟/UKUI 系统字体
+		// 麒麟/UKUI 系统字体 - TTF 格式
 		"/usr/share/fonts/truetype/ukui/ukui-default.ttf",
 		"/usr/share/fonts/ukui/ukui-default.ttf",
 		"/usr/share/fonts/truetype/kylin-font/kylin-font.ttf",
 		
-		// 通用 Linux 中文字体
-		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+		// 文泉驿字体 - TTF 格式
+		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttf",
+		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttf",
+		
+		// 文鼎字体 - TTF 格式
+		"/usr/share/fonts/truetype/arphic/uming.ttf",
+		"/usr/share/fonts/truetype/arphic/ukai.ttf",
+		
+		// Droid 字体
 		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-		"/usr/share/fonts/truetype/arphic/uming.ttc",
-		"/usr/share/fonts/truetype/arphic/ukai.ttc",
 		
 		// Windows 兼容
 		"C:\\Windows\\Fonts\\msyh.ttc",
@@ -65,33 +70,139 @@ func newLightTheme() *myLightTheme {
 }
 
 func (m *myLightTheme) loadFonts() {
+	fmt.Println("========== 开始加载字体 ==========")
+	
 	// 1. 优先检查环境变量 FYNE_FONT
 	if envFont := os.Getenv("FYNE_FONT"); envFont != "" {
+		fmt.Printf("检查环境变量 FYNE_FONT: %s\n", envFont)
 		if _, err := os.Stat(envFont); err == nil {
 			if fontData, err := os.ReadFile(envFont); err == nil {
 				m.regular = fyne.NewStaticResource("regular", fontData)
 				m.bold = fyne.NewStaticResource("bold", fontData)
-				fmt.Printf("✓ 使用环境变量指定的字体: %s\n", envFont)
+				fmt.Printf("✓ 成功：使用环境变量指定的字体 (%d bytes)\n", len(fontData))
+				fmt.Println("==================================")
 				return
 			}
 		}
 	}
 
-	// 2. 尝试加载系统字体（优先 Noto Sans CJK SC）
-	for _, path := range fontPaths {
-		if _, err := os.Stat(path); err == nil {
+	// 2. 使用 fc-list 动态查找楷体字体（优先）
+	fmt.Println("\n使用 fc-list 查找楷体字体...")
+	cmd := exec.Command("fc-list", ":lang=zh", "file", "family")
+	output, err := cmd.Output()
+	
+	if err == nil {
+		lines := strings.Split(string(output), "\n")
+		
+		// 第一遍：优先查找楷体
+		kaitiKeywords := []string{"KaiTi", "楷体", "Kai", "UKai", "AR PL UKai" , "KAITI"}
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			
+			// 检查是否包含楷体关键字
+			isKaiTi := false
+			for _, keyword := range kaitiKeywords {
+				if strings.Contains(line, keyword) {
+					isKaiTi = true
+					break
+				}
+			}
+			
+			if !isKaiTi {
+				continue
+			}
+			
+			// 提取文件路径
+			parts := strings.Split(line, ":")
+			if len(parts) > 0 {
+				fontPath := strings.TrimSpace(parts[0])
+				
+				// 跳过 TTC 文件
+				if strings.HasSuffix(fontPath, ".ttc") {
+					fmt.Printf("  跳过 TTC: %s\n", fontPath)
+					continue
+				}
+				
+				// 尝试加载
+				if stat, err := os.Stat(fontPath); err == nil {
+					fmt.Printf("  找到楷体: %s (%d bytes)\n", fontPath, stat.Size())
+					
+					if fontData, err := os.ReadFile(fontPath); err == nil {
+						m.regular = fyne.NewStaticResource("regular", fontData)
+						m.bold = fyne.NewStaticResource("bold", fontData)
+						fmt.Printf("  ✓ 成功加载楷体！\n")
+						fmt.Println("==================================")
+						return
+					}
+				}
+			}
+		}
+		
+		fmt.Println("  未找到楷体，尝试其他中文字体...")
+		
+		// 第二遍：查找任意非 TTC 中文字体
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			
+			parts := strings.Split(line, ":")
+			if len(parts) > 0 {
+				fontPath := strings.TrimSpace(parts[0])
+				
+				// 跳过 TTC 文件
+				if strings.HasSuffix(fontPath, ".ttc") {
+					continue
+				}
+				
+				// 尝试加载
+				if stat, err := os.Stat(fontPath); err == nil {
+					fmt.Printf("  找到: %s (%d bytes)\n", fontPath, stat.Size())
+					
+					if fontData, err := os.ReadFile(fontPath); err == nil {
+						m.regular = fyne.NewStaticResource("regular", fontData)
+						m.bold = fyne.NewStaticResource("bold", fontData)
+						fmt.Printf("  ✓ 成功加载！\n")
+						fmt.Println("==================================")
+						return
+					}
+				}
+			}
+		}
+	} else {
+		fmt.Printf("  fc-list 命令失败: %v\n", err)
+	}
+
+	// 3. 备用方案：使用预定义的字体路径列表
+	fmt.Println("\n回退到预定义字体路径...")
+	for i, path := range fontPaths {
+		fmt.Printf("[%d/%d] 检查: %s\n", i+1, len(fontPaths), path)
+		
+		// 跳过 TTC 文件
+		if strings.HasSuffix(path, ".ttc") {
+			fmt.Printf("  ⊘ 跳过 TTC 格式\n")
+			continue
+		}
+		
+		if stat, err := os.Stat(path); err == nil {
+			fmt.Printf("  → 文件存在 (大小: %d bytes)\n", stat.Size())
+			
 			if fontData, err := os.ReadFile(path); err == nil {
 				m.regular = fyne.NewStaticResource("regular", fontData)
 				m.bold = fyne.NewStaticResource("bold", fontData)
-				fmt.Printf("✓ 成功加载系统字体: %s\n", path)
+				fmt.Printf("  ✓ 成功加载！\n")
+				fmt.Println("==================================")
 				return
 			}
 		}
 	}
 	
-	// 3. 如果都没找到，使用默认字体（可能不支持中文）
-	fmt.Println("! 警告: 未找到中文字体")
+	// 4. 如果都没找到，使用默认字体
+	fmt.Println("\n! 警告: 未找到任何可用的中文字体")
 	fmt.Println("! 建议安装: sudo apt-get install fonts-noto-cjk")
+	fmt.Println("==================================")
 }
 
 // 自定义颜色
@@ -119,6 +230,13 @@ func (m *myLightTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 
 func (m *myLightTheme) Font(style fyne.TextStyle) fyne.Resource {
 	if m.regular != nil {
+		// 只在第一次调用时打印（避免刷屏）
+		if !m.fontLogged {
+			fmt.Printf("✓ 主题字体已应用 (regular: %d bytes, bold: %d bytes)\n", 
+				len(m.regular.Content()), len(m.bold.Content()))
+			m.fontLogged = true
+		}
+		
 		if style.Bold {
 			return m.bold
 		}
