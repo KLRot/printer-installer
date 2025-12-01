@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"image/color"
@@ -27,9 +26,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-//go:embed NotoSansSC-Regular.otf
-var embeddedFontData []byte
-
 // myLightTheme 自定义亮色主题
 type myLightTheme struct {
 	regular fyne.Resource
@@ -37,17 +33,19 @@ type myLightTheme struct {
 }
 
 var (
-	// 定义常见的中文字体路径
-	// 注意：只包含支持中文的字体！
+	// 定义常见的中文字体路径（优先使用麒麟系统默认字体）
 	fontPaths = []string{
-		// 麒麟/UKUI 系统字体 (优先级最高)
+		// Noto Sans CJK SC (麒麟系统默认字体，优先级最高)
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/truetype/noto-cjk/NotoSansCJKsc-Regular.otf",
+		
+		// 麒麟/UKUI 系统字体
 		"/usr/share/fonts/truetype/ukui/ukui-default.ttf",
 		"/usr/share/fonts/ukui/ukui-default.ttf",
 		"/usr/share/fonts/truetype/kylin-font/kylin-font.ttf",
 		
 		// 通用 Linux 中文字体
-		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
 		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
 		"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
 		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
@@ -67,15 +65,7 @@ func newLightTheme() *myLightTheme {
 }
 
 func (m *myLightTheme) loadFonts() {
-	// 1. 优先使用嵌入的字体（最可靠）
-	if len(embeddedFontData) > 0 {
-		m.regular = fyne.NewStaticResource("NotoSansSC-Regular.otf", embeddedFontData)
-		m.bold = m.regular // 使用同一字体
-		fmt.Println("✓ 使用嵌入的中文字体 (Noto Sans SC)")
-		return
-	}
-
-	// 2. 检查环境变量 FYNE_FONT
+	// 1. 优先检查环境变量 FYNE_FONT
 	if envFont := os.Getenv("FYNE_FONT"); envFont != "" {
 		if _, err := os.Stat(envFont); err == nil {
 			if fontData, err := os.ReadFile(envFont); err == nil {
@@ -87,7 +77,7 @@ func (m *myLightTheme) loadFonts() {
 		}
 	}
 
-	// 3. 尝试加载系统字体（后备方案）
+	// 2. 尝试加载系统字体（优先 Noto Sans CJK SC）
 	for _, path := range fontPaths {
 		if _, err := os.Stat(path); err == nil {
 			if fontData, err := os.ReadFile(path); err == nil {
@@ -99,9 +89,9 @@ func (m *myLightTheme) loadFonts() {
 		}
 	}
 	
-	// 4. 如果都没找到，使用默认字体（可能不支持中文）
+	// 3. 如果都没找到，使用默认字体（可能不支持中文）
 	fmt.Println("! 警告: 未找到中文字体")
-	fmt.Println("! 请安装字体: sudo apt-get install fonts-wqy-microhei")
+	fmt.Println("! 建议安装: sudo apt-get install fonts-noto-cjk")
 }
 
 // 自定义颜色
@@ -558,6 +548,50 @@ func (gui *PrinterInstallerGUI) updateInstallBtnState() {
 	}
 }
 
+// showCustomConfirm 显示自定义样式的确认对话框
+func (gui *PrinterInstallerGUI) showCustomConfirm(title, message string, callback func(bool)) {
+	// 创建消息文本（使用 canvas.Text 可以更好地控制样式）
+	messageText := canvas.NewText(message, color.RGBA{R: 60, G: 60, B: 60, A: 255})
+	messageText.TextSize = 15
+	messageText.Alignment = fyne.TextAlignCenter
+	
+	// 创建按钮
+	var confirmDialog *dialog.CustomDialog
+	
+	confirmBtn := widget.NewButton("确定", func() {
+		confirmDialog.Hide()
+		callback(true)
+	})
+	confirmBtn.Importance = widget.HighImportance
+	
+	cancelBtn := widget.NewButton("取消", func() {
+		confirmDialog.Hide()
+		callback(false)
+	})
+	
+	// 按钮容器（使用 HBox 并添加间距）
+	buttons := container.NewHBox(
+		cancelBtn,
+		widget.NewLabel("  "), // 间距
+		confirmBtn,
+	)
+	
+	// 内容容器（紧凑布局）
+	content := container.NewVBox(
+		container.NewCenter(messageText),
+		widget.NewSeparator(),
+		container.NewCenter(buttons),
+	)
+	
+	// 创建对话框
+	confirmDialog = dialog.NewCustomWithoutButtons(title, content, gui.window)
+	
+	// 设置更小的固定大小
+	confirmDialog.Resize(fyne.NewSize(320, 140))
+	
+	confirmDialog.Show()
+}
+
 // installPrinters 安装选中的打印机
 func (gui *PrinterInstallerGUI) installPrinters() {
 	selectedPrinters := make([]Printer, 0)
@@ -574,13 +608,13 @@ func (gui *PrinterInstallerGUI) installPrinters() {
 		return
 	}
 	
-	// 确认对话框
+	// 使用自定义确认对话框
 	confirmMsg := fmt.Sprintf("确定要安装 %d 台打印机吗?", len(selectedPrinters))
-	dialog.ShowConfirm("确认安装", confirmMsg, func(confirmed bool) {
+	gui.showCustomConfirm("确认安装", confirmMsg, func(confirmed bool) {
 		if confirmed {
 			go gui.installProcess(selectedPrinters)
 		}
-	}, gui.window)
+	})
 }
 
 // installProcess 安装过程
