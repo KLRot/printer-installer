@@ -64,13 +64,22 @@ create_deb() {
     # 复制图标
     if [ -f "printer_icon.png" ]; then
         echo "  → 复制图标: printer_icon.png"
-        # 1. 复制到 pixmaps (传统位置)
-        cp printer_icon.png "${BUILD_DIR}/usr/share/pixmaps/kinglong-printerinstaller.png"
+        
+        # 验证原始图标是否有透明通道
+        if command -v identify &> /dev/null; then
+            echo "  → 原始图标信息:"
+            identify printer_icon.png || true
+        fi
+        
+        # 1. 复制到 pixmaps (传统位置) - 保留文件属性
+        cp -p printer_icon.png "${BUILD_DIR}/usr/share/pixmaps/kinglong-printerinstaller.png"
         chmod 644 "${BUILD_DIR}/usr/share/pixmaps/kinglong-printerinstaller.png"
         
         # 2. 复制到 hicolor (现代标准位置，解决开始菜单图标问题)
-        cp printer_icon.png "${BUILD_DIR}/usr/share/icons/hicolor/256x256/apps/kinglong-printerinstaller.png"
+        cp -p printer_icon.png "${BUILD_DIR}/usr/share/icons/hicolor/256x256/apps/kinglong-printerinstaller.png"
         chmod 644 "${BUILD_DIR}/usr/share/icons/hicolor/256x256/apps/kinglong-printerinstaller.png"
+        
+        echo "  ✓ 图标复制完成"
     else
         echo "  ⚠ 警告: 找不到 printer_icon.png，将使用系统默认图标"
         echo "  当前目录: $(pwd)"
