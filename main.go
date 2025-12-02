@@ -119,6 +119,20 @@ func (m *myLightTheme) loadFonts() {
 			if len(parts) > 0 {
 				fontPath := strings.TrimSpace(parts[0])
 				
+				// 跳过黑名单字体（GB2312 等老旧字体可能导致渲染崩溃）
+				fontBlacklist := []string{"_GB2312", "GB2312", "simsun.ttc"}
+				isBlackListed := false
+				for _, blocked := range fontBlacklist {
+					if strings.Contains(strings.ToLower(fontPath), strings.ToLower(blocked)) {
+						isBlackListed = true
+						break
+					}
+				}
+				if isBlackListed {
+					fmt.Printf("  跳过黑名单字体: %s\n", fontPath)
+					continue
+				}
+				
 				// 跳过 TTC 文件
 				if strings.HasSuffix(fontPath, ".ttc") {
 					fmt.Printf("  跳过 TTC: %s\n", fontPath)
@@ -151,6 +165,19 @@ func (m *myLightTheme) loadFonts() {
 			parts := strings.Split(line, ":")
 			if len(parts) > 0 {
 				fontPath := strings.TrimSpace(parts[0])
+				
+				// 跳过黑名单字体
+				fontBlacklist := []string{"_GB2312", "GB2312", "simsun.ttc"}
+				isBlackListed := false
+				for _, blocked := range fontBlacklist {
+					if strings.Contains(strings.ToLower(fontPath), strings.ToLower(blocked)) {
+						isBlackListed = true
+						break
+					}
+				}
+				if isBlackListed {
+					continue
+				}
 				
 				// 跳过 TTC 文件
 				if strings.HasSuffix(fontPath, ".ttc") {
