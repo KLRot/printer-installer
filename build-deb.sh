@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 PACKAGE_NAME="printer-installer"
 MAINTAINER="Kinglong <caojinlong@gd.chinamobile.com>"
 DESCRIPTION="麒麟系统打印机自动安装程序"

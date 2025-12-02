@@ -354,7 +354,7 @@ func NewPrinterInstallerGUI() *PrinterInstallerGUI {
 
 // Run 运行应用程序
 func (gui *PrinterInstallerGUI) Run() {
-	gui.window = gui.app.NewWindow("麒麟系统打印机自动安装程序 v1.0")
+	gui.window = gui.app.NewWindow("麒麟系统打印机自动安装程序 v1.0.1")
 	gui.window.SetMaster() // 设置为主窗口
 
 	// 初始化UI (SetContent)
